@@ -2,11 +2,12 @@
 from faker import Faker
 import random
 import csv
+import re
 
 # --- Configure locales and their weights ---
 # Each tuple contains a locale and its weight (probability of being chosen)
 locales = [
-    ("en_US", 1),  # 65% Americans
+    ("en_US", 1),  # 100% Americans (adjust weights as needed)
     #("en_GB", 0.10),  # 10% British
     #("es_ES", 0.06),  # 6% Spanish
     #("fr_FR", 0.06),  # 6% French
@@ -23,7 +24,7 @@ def pick_faker():
     r = random.random()
     c = 0.0
     for fk, w in fakers:
-        cum += w
+        c += w
         if r <= c:
             return fk
     return fakers[0][0]  # fallback to en_US if none matched
@@ -37,10 +38,23 @@ def safe_ssn(fk: Faker):
         # Generate a synthetic SSN if Faker fails
         return f"{random.randint(100,999)}-{random.randint(10,99)}-{random.randint(1000,9999)}"
 
+def safe_phone(fk: Faker, length=10):
+    """Generate a phone number with exactly `length` digits."""
+    # Get a msisdn (only digits, usually long)
+    digits = fk.msisdn()
+    digits = re.sub(r"\D", "", digits)
+    # If too long, trim it
+    if len(digits) > length:
+        digits = digits[:length]
+    # If too short, add random digits at the end
+    while len(digits) < length:
+        digits += str(random.randint(0,9))
+    return digits
+
 def one_patient(record_id: int):
     """Generate a single patient profile."""
     fk = pick_faker()
-    # Return a dictionary with patient data
+    # Build and return a dictionary with patient data
     return {
         "record_id": record_id,
         "first_name": fk.first_name(),
@@ -52,7 +66,7 @@ def one_patient(record_id: int):
         "city": fk.city(),
         "county": fk.state(),
         "ssn": safe_ssn(fk),
-        "phone_number": fk.phone_number(),
+        "phone_number": safe_phone(fk, length=10),
         "email": fk.email()
     }
 
@@ -71,6 +85,6 @@ def generate_csv(n_records=100, out_path="international_patients.csv"):
     print(f" File created: {out_path} ({n_records} patients)")
 
 # --- Run the script if executed directly ---
+# If this script is run directly, generate 50 patient records and save to CSV
 if __name__ == "__main__":
-    # Generate 50 patient records and save to CSV
-    generate_csv(n_records=50, out_path="international_patients.csv")
+    generate_csv(n_records=50, out_path="data_gen/international_patients.csv")
