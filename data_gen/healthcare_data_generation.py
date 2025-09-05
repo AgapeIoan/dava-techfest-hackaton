@@ -101,7 +101,7 @@ def one_patient(record_id: int):
         "record_id": record_id,
         "first_name": first_name,
         "last_name": last_name,
-        "gender": gender_code,
+        "sex": gender_code,
         "date_of_birth": fk.date_of_birth(minimum_age=18, maximum_age=90).strftime("%Y-%m-%d"),
         "street": fk.street_name(),
         "street_number": fk.building_number(),
