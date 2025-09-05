@@ -4,8 +4,8 @@ from datetime import datetime, timedelta
 from collections import defaultdict
 import jellyfish
 
-INPUT_FILE = "international_patients.csv"
-OUTPUT_FILE = "international_patients_with_duplicates.csv"
+INPUT_FILE = "data_gen/synthetic_patient_records.csv"
+OUTPUT_FILE = "data_gen/synthetic_patient_records_with_duplicates.csv"
 # Procentul de inregistrari din setul original care vor fi duplicate si corupte.
 # 0.3 inseamna ca pentru 100 de inregistrari originale, vom crea 30 de duplicate corupte.
 DUPLICATION_RATE = 0.3

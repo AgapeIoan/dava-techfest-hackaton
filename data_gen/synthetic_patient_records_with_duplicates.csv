@@ -1,0 +1,14 @@
+record_id,original_record_id,first_name,last_name,gender,date_of_birth,street,street_number,city,county,ssn,phone_number,email
+1,,Felicia,Burns,F,1988-10-11,Michael Shores,37874,Turnermouth,Arkansas,623-50-2801,9655740083,fburns@yahoo.com
+2,,David,Gay,M,1983-02-04,Faulkner Port,0455,Lake Brendaland,Nebraska,607-32-7489,4062207367,dgay@hotmail.com
+3,,Brian,Clark,F,1997-06-13,Kim Passage,209,South Ariana,New Hampshire,438-59-7398,9991130425,brian.clark@yahoo.com
+4,,Chad,Mccoy,F,1952-09-02,Justin Stream,1198,Lake Adamstad,Wyoming,249-78-0418,1909565676,chadmccoy@yahoo.com
+5,,Catherine,Cooper,M,1999-10-01,Peters Junction,614,Port Daniel,New Mexico,016-53-7984,4426632581,catherinec@outlook.com
+6,,Christopher,Gray,M,1939-10-26,Monica Drive,712,Brownburgh,Georgia,292-38-6356,1049489401,christopherg@protonmail.com
+7,,Samantha,Jones,M,1979-07-17,Susan Centers,904,East Loriburgh,Illinois,664-07-3671,4931902940,sjones@hotmail.com
+8,,Stephen,Lopez,M,2005-06-12,White Curve,318,Amberside,New York,641-79-5326,6693231010,stephenlopez@outlook.com
+9,,Thomas,Mcclain,M,1951-10-22,Thomas Camp,295,Yumouth,Kansas,060-48-0759,1295316946,thomasmcclain@outlook.com
+10,,Rebecca,Garcia,F,1982-12-12,Lisa Spurs,18926,Perezton,New Mexico,124-92-5606,5467939348,rebeccag@outlook.com
+11,9,Thomas,Mwcclain,M,1951-10-22,Thomas Camp,295,Yumouth,Kansas,060-48-0759,1295316946,thomasmcclain@outlook.com
+12,4,Chad,Mccoy,F,1952-09-02,Justin Stream,1198,Lake Adamstad,Wyoming,249-78-0418,1909565676,chadmccoy@yahoo.com
+13,2,David,,M,1983-02-04,Faulkner Port,0455,Lake Brendaland,Nebraska,607-32-7489,4062207367,dgay@hotmail.com
