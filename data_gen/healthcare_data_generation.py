@@ -1,5 +1,6 @@
 
 from faker import Faker
+from gender_guesser.detector import Detector
 import random
 import csv
 import re
@@ -28,6 +29,17 @@ def pick_faker():
         if r <= c:
             return fk
     return fakers[0][0]  # fallback to en_US if none matched
+
+DET = Detector(case_sensitive=False)
+
+def infer_gender_from_name(first_name: str) -> str:
+    g = DET.get_gender(first_name)
+    if g in ("female", "mostly_female"):
+        return "F"
+    if g in ("male", "mostly_male"):
+        return "M"
+    return random.choice(["F", "M"])  
+
 
 def safe_ssn(fk: Faker):
     """Try to generate an SSN; if not available for the locale, create a synthetic one."""
@@ -83,12 +95,13 @@ def one_patient(record_id: int):
     fk = pick_faker()
     first_name = fk.first_name()
     last_name = fk.last_name()
+    gender_code = infer_gender_from_name(first_name)
     # Build and return a dictionary with patient data
     return {
         "record_id": record_id,
         "first_name": first_name,
         "last_name": last_name,
-        "gender": random.choice(["F","M"]),
+        "gender": gender_code,
         "date_of_birth": fk.date_of_birth(minimum_age=18, maximum_age=90).strftime("%Y-%m-%d"),
         "street": fk.street_name(),
         "street_number": fk.building_number(),
