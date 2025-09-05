@@ -115,7 +115,7 @@ ipython_config.py
 #pdm.lock
 #pdm.toml
 # Ignore generated patient data CSV
-international_patients.csv
+#international_patients.csv
 .pdm-python
 .pdm-build/
 

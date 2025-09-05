@@ -51,14 +51,43 @@ def safe_phone(fk: Faker, length=10):
         digits += str(random.randint(0,9))
     return digits
 
+def safe_email(first_name, last_name):
+    """
+    Generate a synthetic email address using the patient's first and last name.
+    The email format and domain are randomly chosen from common patterns and providers.
+    """
+    # List of common email domains
+    domains = ["gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "protonmail.com"]
+    # Patterns for constructing the email username
+    patterns = [
+        "{first}.{last}",      # e.g. john.smith
+        "{first}{last}",      # e.g. johnsmith
+        "{f}{last}",          # e.g. jsmith
+        "{first}{l}",         # e.g. johns
+        "{last}.{first}"      # e.g. smith.john
+    ]
+    # Randomly select a pattern for the username
+    pattern = random.choice(patterns)
+    # Format the username using the selected pattern
+    email_user = pattern.format(
+        first=first_name.lower(),
+        last=last_name.lower(),
+        f=first_name[0].lower(),
+        l=last_name[0].lower()
+    )
+    # Combine username and randomly selected domain
+    return f"{email_user}@{random.choice(domains)}"
+
 def one_patient(record_id: int):
     """Generate a single patient profile."""
     fk = pick_faker()
+    first_name = fk.first_name()
+    last_name = fk.last_name()
     # Build and return a dictionary with patient data
     return {
         "record_id": record_id,
-        "first_name": fk.first_name(),
-        "last_name": fk.last_name(),
+        "first_name": first_name,
+        "last_name": last_name,
         "gender": random.choice(["F","M"]),
         "date_of_birth": fk.date_of_birth(minimum_age=18, maximum_age=90).strftime("%Y-%m-%d"),
         "street": fk.street_name(),
@@ -67,7 +96,7 @@ def one_patient(record_id: int):
         "county": fk.state(),
         "ssn": safe_ssn(fk),
         "phone_number": safe_phone(fk, length=10),
-        "email": fk.email()
+        "email": safe_email(first_name, last_name)
     }
 
 def generate_csv(n_records=100, out_path="international_patients.csv"):
