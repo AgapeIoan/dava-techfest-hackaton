@@ -21,10 +21,10 @@ fakers = [(Faker(locale), weight) for locale, weight in locales]
 def pick_faker():
     """Select a Faker instance based on the defined probabilities."""
     r = random.random()
-    cum = 0.0
+    c = 0.0
     for fk, w in fakers:
         cum += w
-        if r <= cum:
+        if r <= c:
             return fk
     return fakers[0][0]  # fallback to en_US if none matched
 
