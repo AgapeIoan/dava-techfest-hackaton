@@ -114,6 +114,9 @@ ipython_config.py
 #   https://pdm-project.org/en/latest/usage/project/#working-with-version-control
 #pdm.lock
 #pdm.toml
+
+# Ignore generated patient data CSV
+international_patients.csv
 .pdm-python
 .pdm-build/
 
