@@ -117,6 +117,8 @@ ipython_config.py
 
 # Ignore generated patient data CSV
 international_patients.csv
+synthetic_patient_records.csv
+synthetic_patient_records_with_duplicates.csv
 .pdm-python
 .pdm-build/
 
