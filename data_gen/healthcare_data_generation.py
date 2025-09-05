@@ -112,7 +112,7 @@ def one_patient(record_id: int):
         "email": safe_email(first_name, last_name)
     }
 
-def generate_csv(n_records=100, out_path="international_patients.csv"):
+def generate_csv(n_records=100, out_path="synthetic_patient_records.csv"):
     """Generate a CSV file with n_records international patients."""
     rows = [one_patient(i+1) for i in range(n_records)]
     fieldnames = [
@@ -129,4 +129,4 @@ def generate_csv(n_records=100, out_path="international_patients.csv"):
 # --- Run the script if executed directly ---
 # If this script is run directly, generate 50 patient records and save to CSV
 if __name__ == "__main__":
-    generate_csv(n_records=50, out_path="data_gen/international_patients.csv")
+    generate_csv(n_records=10, out_path="data_gen/synthetic_patient_records.csv")
