@@ -1,5 +1,4 @@
 # dava-techfest-hackaton
-WELCOME TO SPARTA!
 
 Synthetic Healthcare Dataset Generator
 
