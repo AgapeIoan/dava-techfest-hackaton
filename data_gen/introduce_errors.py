@@ -3,23 +3,141 @@ import random
 from datetime import datetime, timedelta
 from collections import defaultdict
 import jellyfish
+from jellyfish import damerau_levenshtein_distance as dld
 
 INPUT_FILE = "data_gen/synthetic_patient_records.csv"
 OUTPUT_FILE = "data_gen/synthetic_patient_records_with_duplicates.csv"
 # Procentul de inregistrari din setul original care vor fi duplicate si corupte.
 # 0.3 inseamna ca pentru 100 de inregistrari originale, vom crea 30 de duplicate corupte.
-DUPLICATION_RATE = 0.3
+DUPLICATION_RATE = 0.6
 CORRUPTIBLE_FIELDS = [
     "first_name", "last_name", "gender", "date_of_birth", "street",
     "street_number", "city", "county", "ssn", "phone_number", "email"
 ]
 
+# A compact seed of common US first names with known spelling variants
+COMMON_FIRST_NAMES = [
+    # Catherine-family
+    "Catherine", "Katherine", "Kathryn", "Katharine", "Katarine", "Katheryn",
+    # Stephen/Steven
+    "Stephen", "Steven",
+    # Geoffrey/Jeffrey
+    "Geoffrey", "Jeffrey", "Jeffery",
+    # Sara/Sarah
+    "Sara", "Sarah",
+    # Marc/Mark
+    "Marc", "Mark",
+    # Alan/Allen/Allan
+    "Alan", "Allen", "Allan",
+    # Sean/Shawn/Shaun
+    "Sean", "Shawn", "Shaun",
+    # Jon/John/Jonathan
+    "Jon", "John", "Jonathan",
+    # Erik/Eric
+    "Erik", "Eric",
+    # Philip/Phillip
+    "Philip", "Phillip",
+    # Bryan/Brian
+    "Bryan", "Brian",
+    # Kristin/Kristen/Christen/Christin
+    "Kristin", "Kristen", "Christen", "Christin",
+    # Madeline/Madelyn/Madalyn
+    "Madeline", "Madelyn", "Madalyn",
+    # Hailey/Hayley/Haley
+    "Hailey", "Hayley", "Haley",
+    # Jaime/Jamie
+    "Jaime", "Jamie",
+    # Michele/Michelle
+    "Michele", "Michelle",
+    # Desiree/Desirée
+    "Desiree", "Desirée",
+    # Teresa/Theresa
+    "Teresa", "Theresa",
+    # Andre/André/André/Andrew (edge)
+    "Andre", "André", "Andrew",
+    # Alejandro/Alexander/Alexandre (edge)
+    "Alexander", "Alexandre", "Alejandro",
+    # Jeff/Jef (shorts sometimes appear)
+    "Jeff", "Geoff", "Jef",
+]
+
 NICKNAMES = {
-    "William": ["Bill", "Will", "Billy"], "Robert": ["Rob", "Bob", "Robby"],
-    "James": ["Jim", "Jimmy"], "John": ["Jack", "Johnny"],
-    "Michael": ["Mike", "Micky"], "Elizabeth": ["Liz", "Beth", "Lizzy"],
-    "Katherine": ["Kate", "Kathy", "Katie"],
+     "William": ["Bill", "Will", "Billy"],
+    "Robert": ["Rob", "Bob", "Robby", "Bobby"],
+    "James": ["Jim", "Jimmy"],
+    "John": ["Jack", "Johnny"],
+    "Michael": ["Mike", "Micky", "Mikey"],
+    "Elizabeth": ["Liz", "Beth", "Lizzy", "Eliza", "Betsy", "Betty"],
+    "Katherine": ["Kate", "Kathy", "Katie", "Kat"],
+
+    # Male names
+    "Thomas": ["Tom", "Tommy"],
+    "Charles": ["Charlie", "Chuck"],
+    "Richard": ["Rich", "Rick", "Ricky", "Dick"],
+    "Edward": ["Ed", "Eddie", "Ted", "Teddy"],
+    "Anthony": ["Tony"],
+    "Joseph": ["Joe", "Joey"],
+    "Christopher": ["Chris", "Topher", "Kit"],
+    "Daniel": ["Dan", "Danny"],
+    "Matthew": ["Matt"],
+    "Nicholas": ["Nick", "Nicky"],
+    "Alexander": ["Alex", "Xander", "Lex"],
+    "Jonathan": ["Jon", "Johnny", "Nathan"],
+    "Steven": ["Steve", "Stevie"],
+    "Andrew": ["Andy", "Drew"],
+    "Benjamin": ["Ben", "Benny", "Benji"],
+    "Brandon": ["Bran", "Brando"],
+    "Brian": ["Bry", "Bryan"],
+    "Donald": ["Don", "Donnie"],
+    "Douglas": ["Doug", "Dougie"],
+    "Gregory": ["Greg"],
+    "Henry": ["Hank", "Harry"],
+    "Jacob": ["Jake", "Jay"],
+    "Jason": ["Jase"],
+    "Jeremiah": ["Jeremy", "Jerry"],
+    "Joshua": ["Josh"],
+    "Kenneth": ["Ken", "Kenny"],
+    "Lawrence": ["Larry"],
+    "Patrick": ["Pat", "Paddy"],
+    "Samuel": ["Sam", "Sammy"],
+    "Timothy": ["Tim", "Timmy"],
+    "Zachary": ["Zach", "Zack"],
+    "Phillip": ["Phil"],
+    "Jeffrey": ["Jeff", "Jeffy"],
+    "Stephen": ["Steve", "Stevie"],
+    "Marc": ["Mark"],
+
+    # Female names
+    "Allison": ["Allie", "Ally"],
+    "Amanda": ["Mandy", "Amy"],
+    "Andrea": ["Andi", "Andy"],
+    "Angela": ["Angie"],
+    "Cynthia": ["Cindy"],
+    "Danielle": ["Dani", "Elle"],
+    "Jacqueline": ["Jackie"],
+    "Jessica": ["Jess", "Jessie"],
+    "Kimberly": ["Kim", "Kimmy"],
+    "Madeline": ["Maddie", "Maddy"],
+    "Melissa": ["Mel", "Missy"],
+    "Monica": ["Moni", "Nica"],
+    "Rebecca": ["Becky", "Becca"],
+    "Samantha": ["Sam", "Sammy"],
+    "Stephanie": ["Steph", "Stevie"],
+    "Victoria": ["Vicki", "Vicky", "Tori"],
+    "Jennifer": ["Jen", "Jenny"],
+    "Margaret": ["Maggie", "Peggy", "Meg", "Marge"],
+    "Patricia": ["Pat", "Patty", "Trish"],
+    "Deborah": ["Deb", "Debbie", "Debby"],
+    "Barbara": ["Barb", "Babs"],
+    "Sarah": ["Sara", "Sally"],
+    "Catherine": ["Cathy", "Cate", "Cathie"],
 }
+
+# Build { metaphone_code: [names...] }
+PHONETIC_INDEX = {}
+for nm in COMMON_FIRST_NAMES:
+    code = jellyfish.metaphone(nm)
+    PHONETIC_INDEX.setdefault(code, []).append(nm)
 
 def read_data(filepath: str) -> list[dict]:
     """Citeste datele dintr-un fisier CSV si le returneaza ca lista de dictionare."""
@@ -107,58 +225,133 @@ def add_middle_initial(record: dict) -> dict:
         record["first_name"] = f"{record['first_name']} {middle_initial}"
     return record
 
+def get_spelling_variants(name: str, max_edit: int = 2):
+    if not name:
+        return []
+    code = jellyfish.metaphone(name)
+    candidates = PHONETIC_INDEX.get(code, [])
+    # Filter out exact matches; keep near-spellings
+    near = [c for c in candidates if c.lower() != name.lower() and dld(c.lower(), name.lower()) <= max_edit]
+    # (Optional) bias toward same initial for realism
+    same_initial = [c for c in near if c[:1].lower() == name[:1].lower()]
+    return same_initial or near
+
+def introduce_spelling_variant(record, p: float = 0.25):
+    """With probability p, replace first_name by a phonetic + near-edit variant."""
+    if random.random() > p:
+        return record
+    first = record.get("first_name", "")
+    variants = get_spelling_variants(first, max_edit=2)
+    if variants:
+        record["first_name"] = random.choice(variants)
+    return record
+
+def _snapshot(record: dict) -> tuple:
+    """Immutable snapshot of the parts we care about to detect changes."""
+    # include all fields that your ops may touch
+    return (
+        record.get("first_name"), record.get("last_name"),
+        record.get("gender"), record.get("date_of_birth"),
+        record.get("street"), record.get("street_number"),
+        record.get("city"), record.get("county"),
+        record.get("ssn"), record.get("phone_number"),
+        record.get("email")
+    )
+
+def apply_with_fallback(record: dict, primary_op, fallback_ops: list) -> dict:
+    """
+    Try primary_op; if it doesn't change the record, try other ops until one does.
+    Prevents 'no-op' when, e.g., no phonetic variant exists or strings are too short.
+    """
+    before = _snapshot(record)
+    r = primary_op(record)
+    if _snapshot(r) != before:
+        return r
+
+    # try shuffled fallbacks
+    ops = fallback_ops[:]
+    random.shuffle(ops)
+    for op in ops:
+        before2 = _snapshot(r)
+        r = op(r)
+        if _snapshot(r) != before2:
+            return r
+    return r  # if nothing changes, return as-is (rare)
 
 def main():
     """Orchestreaza procesul de citire, duplicare, corupere si scriere a datelor."""
-    
     clean_data = read_data(INPUT_FILE)
     if not clean_data:
         return
 
     phonetic_map = build_phonetic_map(clean_data)
 
+    # Define operations (remove duplicates in list; keep order you want)
     error_operations = [
-        lambda r: introduce_typo(r, "first_name"), lambda r: introduce_typo(r, "last_name"),
-        lambda r: introduce_typo(r, "phone_number"), lambda r: introduce_typo(r, "street"),
-        swap_names, introduce_blank_value, change_date_of_birth,
-        lambda r: introduce_phonetic_error(r, phonetic_map), introduce_nickname, add_middle_initial,
+        lambda r: introduce_typo(r, "first_name"),
+        lambda r: introduce_typo(r, "last_name"),
+        lambda r: introduce_typo(r, "phone_number"),
+        lambda r: introduce_typo(r, "street"),
+
+        swap_names,
+        introduce_blank_value,
+        change_date_of_birth,
+
+        lambda r: introduce_phonetic_error(r, phonetic_map),
+        introduce_nickname,
+        introduce_spelling_variant,
+        add_middle_initial,
     ]
 
-    # Selecteaza inregistrarile care vor fi duplicate
+    # Select records to duplicate
     num_records_to_duplicate = int(len(clean_data) * DUPLICATION_RATE)
     records_to_duplicate = random.sample(clean_data, num_records_to_duplicate)
 
-    # Genereaza duplicatele corupte
     corrupted_duplicates = []
-    # Gaseste cel mai mare ID existent pentru a genera ID-uri noi, unice
     last_record_id = max(int(r['record_id']) for r in clean_data)
 
-    for i, original_record in enumerate(records_to_duplicate):
+    # --- Coverage phase: guarantee each op appears at least once ---
+    # We need at least len(error_operations) duplicates to cover all.
+    coverage_count = min(len(error_operations), len(records_to_duplicate))
+    coverage_ops = error_operations[:coverage_count]  # first K ops
+    random.shuffle(coverage_ops)  # optional: vary which goes first
+
+    # fallback list for when an op can't modify a row
+    fallback_ops = error_operations
+
+    # Apply one distinct op to the first 'coverage_count' duplicates
+    for i in range(coverage_count):
+        original_record = records_to_duplicate[i]
         new_duplicate = original_record.copy()
-        
-        # Atribuie un ID nou, unic si seteaza ID-ul original pentru trasabilitate
         new_duplicate['record_id'] = last_record_id + 1 + i
         new_duplicate['original_record_id'] = original_record['record_id']
 
-        # Aplica o singura eroare aleatorie pe duplicat
-        chosen_error_op = random.choice(error_operations)
-        new_duplicate = chosen_error_op(new_duplicate)
-        
+        op = coverage_ops[i]
+        new_duplicate = apply_with_fallback(new_duplicate, op, fallback_ops)
         corrupted_duplicates.append(new_duplicate)
 
-    # Pregateste datele originale adaugand coloana noua (goala)
+    # --- Random phase: use random ops for remaining duplicates ---
+    for j in range(coverage_count, len(records_to_duplicate)):
+        original_record = records_to_duplicate[j]
+        idx = last_record_id + 1 + j
+        new_duplicate = original_record.copy()
+        new_duplicate['record_id'] = idx
+        new_duplicate['original_record_id'] = original_record['record_id']
+
+        op = random.choice(error_operations)
+        new_duplicate = apply_with_fallback(new_duplicate, op, fallback_ops)
+        corrupted_duplicates.append(new_duplicate)
+
+    # Add original_record_id='' to originals
     for record in clean_data:
         record['original_record_id'] = ''
 
-    # Combina datele originale cu duplicatele si scrie fisierul final
+    # Write combined file
     final_data = clean_data + corrupted_duplicates
-    
-    # Defineste ordinea finala a coloanelor
     final_fieldnames = [
         "record_id", "original_record_id", "first_name", "last_name", "gender", "date_of_birth",
         "street", "street_number", "city", "county", "ssn", "phone_number", "email"
     ]
-    
     write_data(OUTPUT_FILE, final_data, final_fieldnames)
 
 

@@ -1,11 +1,31 @@
 record_id,first_name,last_name,gender,date_of_birth,street,street_number,city,county,ssn,phone_number,email
-1,Fred,Frazier,M,1954-09-30,Howard Spurs,18685,Aprilstad,New York,883-98-6613,6719517735,fredf@gmail.com
-2,William,Torres,F,1984-06-06,Green Port,334,Barbaraborough,Illinois,271-28-7564,4643840265,william.torres@hotmail.com
-3,Kevin,Ellis,F,1967-05-08,Olivia Wells,08875,Kristenfurt,New Jersey,784-33-7311,7658249693,kevine@yahoo.com
-4,Kirsten,Gay,M,1965-10-17,Andrea Plaza,974,Lake Joshua,Indiana,221-29-0805,6081525752,kirsteng@yahoo.com
-5,Laura,James,M,1938-09-22,Lynch Glen,507,Jeremychester,Virginia,489-12-6198,5666653097,ljames@hotmail.com
-6,Joseph,Gonzales,F,1954-03-09,Mcdowell Burgs,3842,Port Amberbury,West Virginia,332-34-2187,3072634350,josephgonzales@gmail.com
-7,Sarah,Anderson,M,1958-07-27,James Heights,96316,East Mariaton,North Carolina,028-34-6346,3668137024,sanderson@hotmail.com
-8,Karl,Mathis,F,1985-12-01,Fry Junction,1357,Benjaminside,Georgia,235-30-4635,2081026384,karl.mathis@yahoo.com
-9,Lori,Evans,F,1946-06-11,Willie Alley,78365,South Joshualand,Alabama,815-51-0782,0969470967,levans@gmail.com
-10,Joseph,Ramsey,M,1957-05-29,Young Greens,68401,Floreshaven,Oklahoma,542-99-7022,2532565666,jramsey@yahoo.com
+1,George,Smith,M,1988-04-02,Jones Prairie,5042,Lake Tonymouth,Massachusetts,846-82-1145,3417280833,gsmith@outlook.com
+2,Maria,Bailey,F,1988-07-20,Leslie Extension,348,Tiffanymouth,Pennsylvania,668-29-3315,5505003091,mariab@gmail.com
+3,Todd,Yates,M,1991-01-24,Ryan Radial,68205,Lake Patrick,Michigan,123-53-9628,6510698041,tyates@hotmail.com
+4,Ashley,Benton,F,1979-03-25,Chad Pike,742,East Olivia,Louisiana,870-31-1037,4652807645,benton.ashley@outlook.com
+5,Nancy,Perkins,F,1998-08-28,Christina Springs,063,Mccormickfurt,Vermont,729-68-5987,8591412308,nancy.perkins@hotmail.com
+6,Stanley,Cantu,M,1952-11-13,Davis Villages,7066,South James,Vermont,126-29-4214,7633262455,stanleyc@outlook.com
+7,Jane,Tran,F,1979-04-04,Thomas Lakes,23334,Port Peter,Connecticut,076-04-6555,7479524753,janet@protonmail.com
+8,Amanda,Conner,F,2000-02-01,Shannon Stravenue,078,East Melissaview,North Dakota,450-72-2989,6900501958,aconner@protonmail.com
+9,Brian,Randall,M,2004-07-30,Richard Burgs,94863,Alexanderstad,Georgia,452-78-8866,1196787116,brianr@protonmail.com
+10,William,White,M,1990-08-18,Brian Way,2828,Dennisbury,Idaho,375-85-4046,3438976076,wwhite@hotmail.com
+11,Caitlin,Turner,F,1987-01-30,Andrea Gateway,49777,Keithborough,Kansas,339-78-0319,4648321022,caitlin.turner@yahoo.com
+12,Beth,Holland,F,1943-01-17,Teresa Locks,43083,Thompsonside,Wyoming,681-55-7651,8074097275,bethholland@outlook.com
+13,Melissa,Wood,F,1965-01-19,Gilbert Cliffs,28469,Deanmouth,Minnesota,586-65-9817,8757277864,melissa.wood@hotmail.com
+14,Wesley,Yang,M,1994-02-09,Bartlett Streets,87324,Washingtonfurt,California,524-04-6384,4174193770,wesleyyang@outlook.com
+15,Jesus,Murray,M,1947-03-09,Lisa View,63792,Fitzpatrickfurt,Virginia,716-53-8728,3407375094,jesusmurray@outlook.com
+16,Kimberly,Stephens,F,2000-12-06,Martin Mountains,62698,Sextonhaven,Kentucky,558-76-9455,3215071644,kimberlystephens@hotmail.com
+17,Kristin,Jackson,F,1953-06-19,Sherry Track,75891,Stephaniemouth,Minnesota,412-15-7427,9885441305,kjackson@gmail.com
+18,Daniel,Mitchell,M,1957-02-12,Parker Spurs,607,Jasmineberg,Louisiana,791-30-6139,6982283574,daniel.mitchell@yahoo.com
+19,Willie,Sharp,M,1980-06-29,Hernandez Pike,300,Nicholasland,Rhode Island,840-52-6464,7864801751,willie.sharp@gmail.com
+20,Timothy,Norris,M,1960-05-26,Monique Forest,74841,New Craigshire,Wisconsin,372-20-5507,6446493029,timothy.norris@hotmail.com
+21,Ryan,White,M,1937-02-12,Hubbard Forge,27451,Port Sara,Arizona,449-99-5588,8377822662,ryanwhite@protonmail.com
+22,Ann,Young,F,1994-10-18,Smith Overpass,451,Allenfurt,Hawaii,490-67-7086,3371651743,ann.young@outlook.com
+23,Emily,Estrada,F,1959-12-04,Cynthia Fields,10224,Benjaminside,Delaware,808-63-8217,4282875864,estrada.emily@gmail.com
+24,Tyler,Nguyen,M,1952-07-28,Jerry Station,093,South Vincent,Georgia,212-96-2837,7782190515,tyler.nguyen@outlook.com
+25,James,Hogan,M,1955-11-17,Carroll Isle,48751,Wendyville,North Carolina,051-28-4072,2978019606,james.hogan@yahoo.com
+26,Carl,Rush,M,1963-11-08,Bradford Camp,811,East Amanda,Maine,188-23-6710,2964981870,carlr@hotmail.com
+27,Angela,Sims,F,1939-05-07,Harris Squares,0965,Juarezmouth,Colorado,838-42-0075,3238649833,angelas@yahoo.com
+28,Ronald,Morris,M,1975-06-16,Sally Burg,817,North Robert,Indiana,665-52-7458,9683552163,rmorris@protonmail.com
+29,Joshua,Hunt,M,1990-06-24,Christopher Crest,9949,Brittanystad,South Dakota,020-02-5196,2481511994,joshua.hunt@yahoo.com
+30,David,Prince,M,1978-01-03,Cheryl Rapid,059,Collinsville,South Dakota,169-02-6309,0932043001,dprince@yahoo.com
