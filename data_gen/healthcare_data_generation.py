@@ -129,8 +129,4 @@ def generate_csv(n_records=100, out_path="synthetic_patient_records.csv"):
 # --- Run the script if executed directly ---
 # If this script is run directly, generate 50 patient records and save to CSV
 if __name__ == "__main__":
-<<<<<<< HEAD
-    generate_csv(n_records=30, out_path="data_gen/synthetic_patient_records.csv")
-=======
     generate_csv(n_records=10, out_path="data_gen/synthetic_patient_records.csv")
->>>>>>> 49b747c9aa1a91ef7875537f4320804e83900d98
