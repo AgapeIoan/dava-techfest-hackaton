@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from collections import defaultdict
 import jellyfish
 from jellyfish import damerau_levenshtein_distance as dld
+import re
 
 INPUT_FILE = "data_gen/synthetic_patient_records.csv"
 OUTPUT_FILE = "data_gen/synthetic_patient_records_with_duplicates.csv"
@@ -11,8 +12,8 @@ OUTPUT_FILE = "data_gen/synthetic_patient_records_with_duplicates.csv"
 # 0.3 inseamna ca pentru 100 de inregistrari originale, vom crea 30 de duplicate corupte.
 DUPLICATION_RATE = 0.6
 CORRUPTIBLE_FIELDS = [
-    "first_name", "last_name", "gender", "date_of_birth", "street",
-    "street_number", "city", "county", "ssn", "phone_number", "email"
+    "first_name", "last_name", "gender", "date_of_birth", "address",
+    "city", "county", "ssn", "phone_number", "email"
 ]
 
 # A compact seed of common US first names with known spelling variants
@@ -139,6 +140,79 @@ for nm in COMMON_FIRST_NAMES:
     code = jellyfish.metaphone(nm)
     PHONETIC_INDEX.setdefault(code, []).append(nm)
 
+STREET_SUFFIX_MAP = {
+    "Street": "St", "Avenue": "Ave", "Drive": "Dr", "Lane": "Ln", "Road": "Rd",
+    "Boulevard": "Blvd", "Court": "Ct", "Place": "Pl", "Terrace": "Ter",
+}
+
+STREET_SUFFIX_MAP.update({v: k for k, v in STREET_SUFFIX_MAP.items()})
+
+ADDRESS_REGEX = re.compile(
+    r"^(?P<number>\d+)\s+"
+    r"(?P<name>.+?)\s+"
+    r"(?P<suffix>Street|St|Avenue|Ave|Drive|Dr|Lane|Ln|Road|Rd|Boulevard|Blvd|Court|Ct|Place|Pl|Terrace|Ter)\b"
+    r"(?:\s+(?P<secondary>.*))?$",
+    re.IGNORECASE
+)
+
+def parse_us_address(address: str) -> dict | None:
+    """Decomposes a US address string into its components using RegEx."""
+    if not address:
+        return None
+    match = ADDRESS_REGEX.match(address)
+    if not match:
+        return None
+    return match.groupdict()
+
+def introduce_address_abbreviation_error(record: dict) -> dict:
+    """Swaps the street suffix between its full and abbreviated form (e.g., Street <-> St)."""
+    address_str = record.get("address", "")
+    parts = parse_us_address(address_str)
+    if not parts or not parts.get("suffix"):
+        return record  # Cannot apply this error if address doesn't parse correctly
+
+    original_suffix = parts["suffix"].title()  # Standardize case for lookup
+    new_suffix = STREET_SUFFIX_MAP.get(original_suffix)
+    if not new_suffix:
+        return record  # Should not happen with the current regex, but a good safeguard
+
+    # Reconstruct the address with the new suffix
+    new_address = f"{parts['number']} {parts['name']} {new_suffix}"
+    if parts.get("secondary") and parts["secondary"] is not None:
+        new_address += f" {parts['secondary']}"
+    
+    record["address"] = new_address
+    return record
+
+def introduce_address_component_omission_error(record: dict) -> dict:
+    """Removes a component from the address, like the suffix (St, Ave) or a secondary unit."""
+    address_str = record.get("address", "")
+    parts = parse_us_address(address_str)
+    if not parts:
+        return record
+
+    # Decide what can be omitted
+    possible_omissions = []
+    if parts.get("suffix"):
+        possible_omissions.append("suffix")
+    if parts.get("secondary") and parts["secondary"] is not None:
+        possible_omissions.append("secondary")
+    
+    if not possible_omissions:
+        return record # Nothing to omit
+        
+    omission_target = random.choice(possible_omissions)
+    
+    if omission_target == "suffix":
+        new_address = f"{parts['number']} {parts['name']}"
+        if parts.get("secondary") and parts["secondary"] is not None:
+             new_address += f" {parts['secondary']}"
+    else: # Omit secondary
+        new_address = f"{parts['number']} {parts['name']} {parts['suffix']}"
+
+    record["address"] = new_address
+    return record
+
 def read_data(filepath: str) -> list[dict]:
     """Citeste datele dintr-un fisier CSV si le returneaza ca lista de dictionare."""
     try:
@@ -252,7 +326,7 @@ def _snapshot(record: dict) -> tuple:
     return (
         record.get("first_name"), record.get("last_name"),
         record.get("gender"), record.get("date_of_birth"),
-        record.get("street"), record.get("street_number"),
+        record.get("address"),
         record.get("city"), record.get("county"),
         record.get("ssn"), record.get("phone_number"),
         record.get("email")
@@ -291,7 +365,7 @@ def main():
         lambda r: introduce_typo(r, "first_name"),
         lambda r: introduce_typo(r, "last_name"),
         lambda r: introduce_typo(r, "phone_number"),
-        lambda r: introduce_typo(r, "street"),
+        lambda r: introduce_typo(r, "address"),
 
         swap_names,
         introduce_blank_value,
@@ -301,6 +375,9 @@ def main():
         introduce_nickname,
         introduce_spelling_variant,
         add_middle_initial,
+
+        introduce_address_abbreviation_error,
+        introduce_address_component_omission_error,
     ]
 
     # Select records to duplicate
@@ -350,7 +427,7 @@ def main():
     final_data = clean_data + corrupted_duplicates
     final_fieldnames = [
         "record_id", "original_record_id", "first_name", "last_name", "gender", "date_of_birth",
-        "street", "street_number", "city", "county", "ssn", "phone_number", "email"
+        "address", "city", "county", "ssn", "phone_number", "email"
     ]
     write_data(OUTPUT_FILE, final_data, final_fieldnames)
 

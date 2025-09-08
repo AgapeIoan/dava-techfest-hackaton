@@ -103,8 +103,9 @@ def one_patient(record_id: int):
         "last_name": last_name,
         "gender": gender_code,
         "date_of_birth": fk.date_of_birth(minimum_age=18, maximum_age=90).strftime("%Y-%m-%d"),
-        "street": fk.street_name(),
-        "street_number": fk.building_number(),
+        # "street": fk.street_name(),
+        # "street_number": fk.building_number(),
+        "address": fk.street_address(),
         "city": fk.city(),
         "county": fk.state(),
         "ssn": safe_ssn(fk),
@@ -117,7 +118,7 @@ def generate_csv(n_records=100, out_path="synthetic_patient_records.csv"):
     rows = [one_patient(i+1) for i in range(n_records)]
     fieldnames = [
         "record_id", "first_name", "last_name", "gender", "date_of_birth",
-        "street", "street_number", "city", "county", "ssn", "phone_number", "email"
+        "address", "city", "county", "ssn", "phone_number", "email"
     ]
     # Write patient data to CSV file
     with open(out_path, "w", newline="", encoding="utf-8") as f:
@@ -129,4 +130,4 @@ def generate_csv(n_records=100, out_path="synthetic_patient_records.csv"):
 # --- Run the script if executed directly ---
 # If this script is run directly, generate 50 patient records and save to CSV
 if __name__ == "__main__":
-    generate_csv(n_records=10, out_path="data_gen/synthetic_patient_records.csv")
+    generate_csv(n_records=1000, out_path="data_gen/synthetic_patient_records.csv")
