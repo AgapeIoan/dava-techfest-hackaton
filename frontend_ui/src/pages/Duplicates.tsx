@@ -1,10 +1,13 @@
 import Grid from '@mui/material/Grid'
 import {
   Paper, Stack, TextField, Button, Typography, Card, CardContent,
-  Table, TableHead, TableRow, TableCell, TableBody, Checkbox,
+  Table, TableHead, TableRow, TableCell, TableBody,
   Chip, Skeleton, Box, LinearProgress, CircularProgress, Tooltip
 } from '@mui/material'
-import { useMemo, useState } from 'react'
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import useDupeStore from '../store/dupeStore'
 
@@ -29,67 +32,70 @@ function MatchBar({ value }: { value: number }) {
   )
 }
 
-type Order = 'asc' | 'desc'
+
 
 export default function DuplicatesPage() {
+
   const {
     first, last, setFirst, setLast, loading,
-    patient, dupes, selected, search, findDuplicates, toggleSelect, startMerge,    role
+  patient, dupes, findDuplicates, isAuthenticated
   } = useDupeStore()
+  const [dob, setDob] = useState<string>('');
+  const [searchAttempted, setSearchAttempted] = useState(false);
 
-  const selectedIds = useMemo(
-    () => Object.entries(selected).filter(([, v]) => v).map(([k]) => k),
-    [selected]
-  )
   const navigate = useNavigate()
 
-  // sort simplu
-  const [orderBy, setOrderBy] = useState<'matchPct'|'firstName'|'lastName'>('matchPct')
-  const [order, setOrder] = useState<Order>('desc')
-  const sorted = useMemo(() => {
-    const arr = [...dupes]
-    arr.sort((a,b) => {
-      const dir = order === 'asc' ? 1 : -1
-      if (orderBy === 'matchPct') return (a.matchPct - b.matchPct) * dir
-      return String(a[orderBy]).localeCompare(String(b[orderBy])) * dir
-    })
-    return arr
-  }, [dupes, orderBy, order])
-
-  function onSort(col: typeof orderBy) {
-    if (orderBy === col) setOrder(o => o === 'asc' ? 'desc' : 'asc')
-    else { setOrderBy(col); setOrder('asc') }
+  // Reset searchAttempted when user types
+  const sorted = dupes;
+  function handleFieldChange(setter: (v: string) => void, value: string) {
+    setter(value);
+    setSearchAttempted(false);
   }
 
-  function exportCSV() {
-    const header = ['First Name','Last Name','Match %','SSN','DOB','Street','No','City','County','Phone','Email']
-    const rows = dupes.map(r => [
-      r.firstName, r.lastName, r.matchPct, r.ssn ?? '', r.dob ?? '',
-      r.address?.street ?? '', r.address?.number ?? '', r.address?.city ?? '', r.address?.county ?? '',
-      r.phone ?? '', r.email ?? ''
-    ])
-    const csv = [header, ...rows].map(row => row.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n')
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a'); a.href = url; a.download = 'duplicates.csv'; a.click()
-    URL.revokeObjectURL(url)
-  }
+
 
   return (
     <>
-      <Paper sx={{ p: 2, mb: 3 }}>
-        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems="flex-end">
-          <TextField label="First Name*" value={first} onChange={(e) => setFirst(e.target.value)} fullWidth />
-          <TextField label="Last Name*" value={last} onChange={(e) => setLast(e.target.value)} fullWidth />
-          <Button onClick={search} variant="contained" disabled={!first || !last || loading}
-            startIcon={loading ? <CircularProgress color="inherit" size={16} /> : null}>
-            {loading ? 'Searching…' : 'Search'}
-          </Button>
-        </Stack>
-        <Typography variant="caption" sx={{ opacity: 0.7 }}>
-          Exemple: Raymond Bell, Alice Johnson, Maria Ionescu, John Doe
-        </Typography>
-      </Paper>
+
+      {isAuthenticated && (
+        <Paper sx={{ p: 2, mb: 3 }}>
+          <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 600 }}>
+            Insert the patient details.
+          </Typography>
+          <LocalizationProvider dateAdapter={AdapterDateFns}>
+            <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems="flex-end">
+              <TextField label="First Name*" value={first} onChange={(e) => handleFieldChange(setFirst, e.target.value)} fullWidth required />
+              <TextField label="Last Name*" value={last} onChange={(e) => handleFieldChange(setLast, e.target.value)} fullWidth required />
+              <Box sx={{ minWidth: 220, flex: 1 }}>
+                <DatePicker
+                  label="Date of Birth (optional)"
+                  value={dob ? new Date(dob) : null}
+                  onChange={(date: Date | null) => { handleFieldChange(setDob, date ? date.toISOString().slice(0, 10) : ''); }}
+                  slotProps={{ textField: { fullWidth: true } }}
+                  disableFuture
+                  format="yyyy-MM-dd"
+                />
+              </Box>
+              <Button
+                onClick={() => {
+                  // @ts-ignore
+                  window.__dupe_dob = dob;
+                  setSearchAttempted(true);
+                  findDuplicates();
+                }}
+                variant="contained"
+                disabled={!first || !last || loading}
+                startIcon={loading ? <CircularProgress color="inherit" size={16} /> : null}
+              >
+                {loading ? 'Searching…' : 'Search'}
+              </Button>
+            </Stack>
+          </LocalizationProvider>
+          <Typography variant="caption" sx={{ opacity: 0.7 }}>
+            Example: Raymond Bell, Alice Johnson, Maria Ionescu, John Doe
+          </Typography>
+        </Paper>
+      )}
 
       {/* Skeleton pentru card */}
       {loading && !patient && (
@@ -97,15 +103,16 @@ export default function DuplicatesPage() {
           <CardContent>
             <Grid container spacing={2}>
               {[0,1,2].map(i => (
-                <Grid item xs={12} md={4} key={i}>
+                <Box key={i} sx={{ flex: 1, minWidth: 0, mb: 2 }}>
                   <Skeleton variant="text" width={140} height={28} />
                   {Array.from({length:4}).map((_,j) => <Skeleton key={j} variant="text" />)}
-                </Grid>
+                </Box>
               ))}
             </Grid>
           </CardContent>
         </Card>
       )}
+
 
       {patient && !loading && (
         <>
@@ -115,42 +122,29 @@ export default function DuplicatesPage() {
           <Card sx={{ mb: 2 }}>
             <CardContent>
               <Grid container spacing={2}>
-                <Grid item xs={12} md={4}>
+                <Box sx={{ flex: 1, minWidth: 0, mb: 2 }}>
                   <Typography fontWeight={600}>Patient</Typography>
                   <Typography>First Name: {patient.firstName}</Typography>
                   <Typography>Last Name: {patient.lastName}</Typography>
                   <Typography>SSN: {patient.ssn ?? '—'}</Typography>
                   <Typography>Date of Birth: {patient.dob ?? '—'}</Typography>
-                </Grid>
-                <Grid item xs={12} md={4}>
+                </Box>
+                <Box sx={{ flex: 1, minWidth: 0, mb: 2 }}>
                   <Typography fontWeight={600}>Address</Typography>
                   <Typography>Street: {patient.address?.street}</Typography>
                   <Typography>Number: {patient.address?.number}</Typography>
                   <Typography>City: {patient.address?.city}</Typography>
                   <Typography>County: {patient.address?.county}</Typography>
-                </Grid>
-                <Grid item xs={12} md={4}>
+                </Box>
+                <Box sx={{ flex: 1, minWidth: 0, mb: 2 }}>
                   <Typography fontWeight={600}>Contact</Typography>
                   <Typography>Phone: {patient.phone ?? '—'}</Typography>
                   <Typography>Email: {patient.email ?? '—'}</Typography>
-                </Grid>
+                </Box>
               </Grid>
             </CardContent>
           </Card>
-
-          <Stack direction="row" justifyContent="flex-end" sx={{ mb: 2 }} spacing={2}>
-            <Button variant="contained" onClick={findDuplicates} disabled={loading}
-              startIcon={loading ? <CircularProgress color="inherit" size={16} /> : null}>
-              {loading ? '…' : 'Find duplicates'}
-            </Button>
-            <Button color="secondary" variant="outlined" onClick={exportCSV}  disabled={dupes.length === 0 || (role !== 'admin' && role !== 'receptionist')}>
-              Export CSV
-            </Button>
-            <Button color="primary" variant="contained" disabled={selectedIds.length === 0}
-              onClick={() => { startMerge(); navigate('/merge') }}>
-              Merge Selected
-            </Button>
-          </Stack>
+          {/* Removed Find duplicates and Export CSV buttons */}
         </>
       )}
 
@@ -163,19 +157,18 @@ export default function DuplicatesPage() {
         </Paper>
       )}
 
+
       {dupes.length > 0 && (
         <Paper sx={{ p: 2 }}>
           <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1 }}>
             Potential duplicates: {dupes.length}
           </Typography>
-
           <Table size="small">
             <TableHead>
               <TableRow>
-                <TableCell>Action</TableCell>
-                <TableCell onClick={()=>onSort('firstName')} sx={{ cursor:'pointer' }}>First Name</TableCell>
-                <TableCell onClick={()=>onSort('lastName')}  sx={{ cursor:'pointer' }}>Last Name</TableCell>
-                <TableCell onClick={()=>onSort('matchPct')}  sx={{ cursor:'pointer' }}>Match</TableCell>
+                <TableCell>First Name</TableCell>
+                <TableCell>Last Name</TableCell>
+                <TableCell>Match</TableCell>
                 <TableCell>Reasons</TableCell>
                 <TableCell>SSN</TableCell>
                 <TableCell>DOB</TableCell>
@@ -190,9 +183,6 @@ export default function DuplicatesPage() {
             <TableBody>
               {sorted.map(row => (
                 <TableRow key={row.id} hover>
-                  <TableCell>
-                    <Checkbox checked={!!selected[row.id]} onChange={(e) => toggleSelect(row.id, e.target.checked)} />
-                  </TableCell>
                   <TableCell>{row.firstName}</TableCell>
                   <TableCell>{row.lastName}</TableCell>
                   <TableCell><MatchBar value={row.matchPct} /></TableCell>
@@ -218,6 +208,18 @@ export default function DuplicatesPage() {
               ))}
             </TableBody>
           </Table>
+        </Paper>
+      )}
+
+      {/* Show add patient only after search was attempted and not found */}
+      {!loading && !patient && searchAttempted && (
+        <Paper sx={{ p: 2, mt: 2, textAlign: 'center' }}>
+          <Typography variant="h6" sx={{ mb: 2 }}>
+            Patient is not registered in the database.
+          </Typography>
+          <Button variant="contained" color="primary" onClick={() => navigate('/add-patient')}>
+            Add new patient
+          </Button>
         </Paper>
       )}
     </>

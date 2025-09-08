@@ -201,8 +201,8 @@ const useDupeStore = create<State>()((set, get) => ({
   mergeCtx: null,
   activity: [],
 
-  setFirst: (v: string) => set({ first: v }),
-  setLast: (v: string) => set({ last: v }),
+  setFirst: (v: string) => set({ first: v, patient: null, dupes: [] }),
+  setLast: (v: string) => set({ last: v, patient: null, dupes: [] }),
   setThreshold: (v: number) => set({ threshold: v }),
   setRole: (r: Role) => { saveRole(r); set({ role: r }); },
   clearToast: () => set({ toast: null }),
@@ -304,7 +304,31 @@ const useDupeStore = create<State>()((set, get) => ({
     }
     set({ patient, loading: false, toast: null });
   },
-  async findDuplicates() { /* … */ },
+  async findDuplicates() {
+    const { first, last, db } = get();
+    set({ loading: true, patient: null, dupes: [], selected: {} });
+    // Get dob from the Duplicates page state if available
+    let dob = '';
+    try {
+      // Try to get dob from the global window (hacky, but avoids prop drilling)
+      dob = window.__dupe_dob || '';
+    } catch {}
+    // Find all patients with matching first and last name (case-insensitive)
+    let matches = db.filter(p =>
+      p.firstName.toLowerCase() === first.toLowerCase() &&
+      p.lastName.toLowerCase() === last.toLowerCase()
+    );
+    // If dob is provided, sort matches so exact dob comes first
+    if (dob) {
+      matches = matches.sort((a, b) => {
+        if (a.dob === dob && b.dob !== dob) return -1;
+        if (a.dob !== dob && b.dob === dob) return 1;
+        return 0;
+      });
+    }
+    const patient = matches[0] || null;
+    set({ patient, loading: false, toast: patient ? null : 'Nu s-a găsit pacientul.' });
+  },
   toggleSelect: (id: string, val: boolean) => set(s => ({ selected: { ...s.selected, [id]: val } })),
   startMerge() { /* … */ },
   async applyMerge(merged: Patient) {

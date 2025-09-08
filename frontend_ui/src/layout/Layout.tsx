@@ -34,9 +34,6 @@ import PersonIcon from '@mui/icons-material/Person'; // ⬅️ icon persoană
 import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown'; // ⬅️ pentru meniu
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
-import { Link, useLocation } from 'react-router-dom';
-import PersonIcon from '@mui/icons-material/Person';
-import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
 import { Link, useLocation , useNavigate } from 'react-router-dom';
 import useDupeStore from '../store/dupeStore';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
@@ -103,226 +100,239 @@ export default function Layout({ children }: PropsWithChildren) {
   // login state
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+
+  // Clear login fields on logout or on mount if not authenticated
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setEmail('');
+      setPassword('');
+    }
+  }, [isAuthenticated]);
   const [showPassword, setShowPassword] = useState(false);
 
-  return (
-    <Box sx={{ display: 'flex', minHeight: '100vh' }}>
-      <AppBar position="fixed" color="default" elevation={0}>
-        <Toolbar sx={{ display: 'flex', gap: 2 }}>
-          <Typography variant="h6" sx={{ fontWeight: 800, color: 'white' }}>
+  if (!isAuthenticated) {
+    // Receptionist: professional, elegant background
+  const bgReceptionist = 'linear-gradient(120deg, #e0c3fc 0%, #8ec5fc 50%, #f093fb 100%, #f5576c 120%)';
+    const bgDefault = 'url(/medical-bg.svg)';
+    return (
+      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh',
+        background: role === 'receptionist' ? bgReceptionist : bgDefault,
+        backgroundSize: 'cover', backgroundPosition: 'center', bgcolor: '#f5f7fa' }}>
+        <Box sx={{ mb: 4, textAlign: 'center' }}>
+          <Typography
+            variant="h3"
+            fontWeight={700}
+            color="primary.main"
+            gutterBottom
+            sx={{ fontFamily: 'Playfair Display, serif', letterSpacing: 1 }}
+          >
             Duplicate Profile Detector
           </Typography>
-
-          <Box sx={{ flexGrow: 1 }} />
-
-          {/* ---- Buton Login / Avatar (dreapta sus) ---- */}
-          {!isAuthenticated ? (
+          <Typography variant="subtitle1" color="text.secondary">
+            A platform for fast identification and management of duplicate profiles in the medical system.
+          </Typography>
+        </Box>
+        <Box sx={{ minWidth: 320, p: 4, bgcolor: 'white', borderRadius: 3, boxShadow: 3 }}>
+          <Stack spacing={2}>
+            <TextField
+              label="Email"
+              value={email}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
+              fullWidth
+              size="small"
+            />
+            <TextField
+              label="Password"
+              type={showPassword ? 'text' : 'password'}
+              value={password}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
+              fullWidth
+              size="small"
+              InputProps={{
+                endAdornment: (
+                  <IconButton
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    onClick={() => setShowPassword((v) => !v)}
+                    edge="end"
+                    size="small"
+                  >
+                    {showPassword ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                  </IconButton>
+                ),
+              }}
+            />
             <Button
               variant="contained"
-              color="primary"
-              startIcon={<PersonIcon />}
-              onClick={openMenu}
-              sx={{ borderRadius: 999 }}
+              onClick={() => loginWithEmail(email, password)}
+              fullWidth
             >
               Login
             </Button>
-          ) : (
-            <Button
-              variant="contained"
-              color="primary"
-              onClick={openMenu}
-              sx={{ borderRadius: 999, display: 'flex', alignItems: 'center', gap: 1 }}
-              startIcon={
-                <Avatar sx={{ width: 24, height: 24, bgcolor: 'rgba(255,255,255,0.2)' }}>
-                  <PersonIcon fontSize="small" />
-                </Avatar>
-              }
-              endIcon={<ArrowDropDownIcon />}
-            >
-              {userName ?? 'Signed in'}
-            </Button>
-          )}
+          </Stack>
+        </Box>
+        <Snackbar open={!!toast} autoHideDuration={2500} message={toast ?? ''} onClose={clearToast} />
+      </Box>
+    );
+  }
 
+  // Receptionist: professional, elegant background
+  const bgReceptionist = 'linear-gradient(120deg, #e0c3fc 0%, #8ec5fc 50%, #f093fb 100%, #f5576c 120%)';
+  const bgDefault = 'url(/medical-bg-vivid.svg)';
+  return (
+    <Box sx={{ display: 'flex', minHeight: '100vh', background: role === 'receptionist' ? bgReceptionist : bgDefault, backgroundSize: 'cover', backgroundPosition: 'center', bgcolor: '#f5f7fa' }}>
+      <AppBar position="fixed" color="default" elevation={0}>
+        <Toolbar sx={{ display: 'flex', gap: 2 }}>
+          <Typography
+            variant="h4"
+            sx={{ fontWeight: 700, color: 'white', fontFamily: 'Playfair Display, serif', letterSpacing: 1 }}
+          >
+            Duplicate Profile Detector
+          </Typography>
+          <Box sx={{ flexGrow: 1 }} />
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={openMenu}
+            sx={{ borderRadius: 999, display: 'flex', alignItems: 'center', gap: 1 }}
+            startIcon={
+              <Avatar sx={{ width: 24, height: 24, bgcolor: 'rgba(255,255,255,0.2)' }}>
+                <PersonIcon fontSize="small" />
+              </Avatar>
+            }
+            endIcon={<ArrowDropDownIcon />}
+          >
+            {userName ?? 'Signed in'}
+          </Button>
           <Menu anchorEl={anchorEl} open={menuOpen} onClose={closeMenu}>
-            {!isAuthenticated ? (
-              <Box sx={{ minWidth: 260, p: 2 }}>
-                <Stack spacing={2}>
-                  <TextField
-                    label="Email"
-                    value={email}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
-                    fullWidth
-                    size="small"
-                  />
-                  <TextField
-                    label="Password"
-                    type={showPassword ? 'text' : 'password'}
-                    value={password}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
-                    fullWidth
-                    size="small"
-                    InputProps={{
-                      endAdornment: (
-                        <IconButton
-                          aria-label={showPassword ? 'Hide password' : 'Show password'}
-                          onClick={() => setShowPassword((v) => !v)}
-                          edge="end"
-                          size="small"
-                        >
-                          {showPassword ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
-                        </IconButton>
-                      ),
-                    }}
-                  />
-                  <Button
-                    variant="contained"
-                    onClick={() => { loginWithEmail(email, password); closeMenu(); }}
-                    fullWidth
-                  >
-                    Login
-                  </Button>
-                </Stack>
-              </Box>
-            ) : (
-              <List dense sx={{ minWidth: 240, p: 1 }}>
-                <ListItemButton disabled>
-                  <ListItemIcon><PersonIcon /></ListItemIcon>
-                  <ListItemText primary={userName} secondary="Signed in" />
-                </ListItemButton>
-                <Divider />
-                <ListItemButton onClick={() => { logout(); closeMenu(); }}>
-                  <ListItemIcon><HistoryIcon /></ListItemIcon>
-                  <ListItemText primary="Logout" />
-                </ListItemButton>
-              </List>
-            )}
+            <List dense sx={{ minWidth: 240, p: 1 }}>
+              <ListItemButton disabled>
+                <ListItemIcon><PersonIcon /></ListItemIcon>
+                <ListItemText primary={userName} secondary="Signed in" />
+              </ListItemButton>
+              <Divider />
+              <ListItemButton onClick={() => { logout(); closeMenu(); }}>
+                <ListItemIcon><HistoryIcon /></ListItemIcon>
+                <ListItemText primary="Logout" />
+              </ListItemButton>
+            </List>
           </Menu>
         </Toolbar>
-
         {loading && <LinearProgress color="primary" />}
       </AppBar>
 
-      <Drawer
-        variant="permanent"
-        sx={{
-          width: drawerWidth,
-          flexShrink: 0,
-          '& .MuiDrawer-paper': {
+      {(role !== 'receptionist') && (
+        <Drawer
+          variant="permanent"
+          sx={{
             width: drawerWidth,
-            boxSizing: 'border-box',
-            background: '#0E1B22',
-            color: 'white',
-          },
-        }}
-      >
-
-        <Toolbar />
-        <Box sx={{ p: 2 }}>
-          {/* --- Public Links --- */}
-          <List dense>
-            <ListItemButton
-              component={Link}
-              to="/duplicates"
-              selected={loc.pathname.startsWith('/duplicates')}
-            >
-              <ListItemIcon>
-                <SearchIcon htmlColor="#FF6A13" />
-              </ListItemIcon>
-              <ListItemText primary="Find Duplicates" />
-            </ListItemButton>
-
-            <ListItemButton
-              component={Link}
-              to="/security"
-              selected={loc.pathname.startsWith('/security')}
-            >
-              <ListItemIcon>
-                <SecurityIcon htmlColor="#FF6A13" />
-              </ListItemIcon>
-              <ListItemText primary="Security & Privacy" />
-            </ListItemButton>
-
-            {/* --- Admin-Only Links --- */}
-            {role === 'admin' && (
-              <>
-                <ListItemButton
-                  component={Link}
-                  to="/merge"
-                  selected={loc.pathname.startsWith('/merge')}
-                >
-                  <ListItemIcon>
-                    <MergeIcon htmlColor="#FF6A13" />
-                  </ListItemIcon>
-                  <ListItemText primary="Merge View" />
-                  {selectedCount > 0 && (
-                    <Chip
-                      label={selectedCount}
-                      color="primary"
-                      size="small"
-                      sx={{ ml: 1 }}
-                    />
-                  )}
-                </ListItemButton>
-              </>
-            )}
-          </List>
-
-          <Divider sx={{ my: 2, borderColor: 'rgba(255,255,255,0.12)' }} />
-
-          <Stack spacing={1} sx={{ mb: 2 }}>
-            <Stack direction="row" alignItems="center" spacing={1}>
-              <TuneIcon fontSize="small" />
-              <Typography variant="subtitle2">Match Threshold</Typography>
+            flexShrink: 0,
+            '& .MuiDrawer-paper': {
+              width: drawerWidth,
+              boxSizing: 'border-box',
+              background: 'linear-gradient(135deg, #1e293b 0%, #3b4252 100%)',
+              color: 'white',
+            },
+          }}
+        >
+          <Toolbar />
+          <Box sx={{ p: 2 }}>
+            <List dense>
+              <ListItemButton
+                component={Link}
+                to="/duplicates"
+                selected={loc.pathname.startsWith('/duplicates')}
+              >
+                <ListItemIcon>
+                  <SearchIcon htmlColor="#FF6A13" />
+                </ListItemIcon>
+                <ListItemText primary="Find Duplicates" />
+              </ListItemButton>
+              <ListItemButton
+                component={Link}
+                to="/security"
+                selected={loc.pathname.startsWith('/security')}
+              >
+                <ListItemIcon>
+                  <SecurityIcon htmlColor="#FF6A13" />
+                </ListItemIcon>
+                <ListItemText primary="Security & Privacy" />
+              </ListItemButton>
+              {role === 'admin' && (
+                <>
+                  <ListItemButton
+                    component={Link}
+                    to="/merge"
+                    selected={loc.pathname.startsWith('/merge')}
+                  >
+                    <ListItemIcon>
+                      <MergeIcon htmlColor="#FF6A13" />
+                    </ListItemIcon>
+                    <ListItemText primary="Merge View" />
+                    {selectedCount > 0 && (
+                      <Chip
+                        label={selectedCount}
+                        color="primary"
+                        size="small"
+                        sx={{ ml: 1 }}
+                      />
+                    )}
+                  </ListItemButton>
+                </>
+              )}
+            </List>
+            <Divider sx={{ my: 2, borderColor: 'rgba(255,255,255,0.12)' }} />
+            <Stack spacing={1} sx={{ mb: 2 }}>
+              <Stack direction="row" alignItems="center" spacing={1}>
+                <TuneIcon fontSize="small" />
+                <Typography variant="subtitle2">Match Threshold</Typography>
+              </Stack>
+              <Slider
+                value={threshold}
+                min={0}
+                max={100}
+                step={5}
+                valueLabelDisplay="auto"
+                onChange={(_, v) => setThreshold(v as number)}
+                sx={{ color: '#FF6A13' }}
+              />
             </Stack>
-            <Slider
-              value={threshold}
-              min={0}
-              max={100}
-              step={5}
-              valueLabelDisplay="auto"
-              onChange={(_, v) => setThreshold(v as number)}
-              sx={{ color: '#FF6A13' }}
-            />
-          </Stack>
-
-          <FormControl size="small" fullWidth sx={{ mb: 2 }}>
-            <InputLabel id="role-label">Role</InputLabel>
-            <Select
-              labelId="role-label"
-              label="Role"
-              value={role}
-              onChange={(e) => setRole(e.target.value as any)}
-              disabled={roleSource === 'server'} // read-only dacă vine din “login”
-            >
-              <MenuItem value="viewer">Viewer</MenuItem>
-              <MenuItem value="receptionist">Receptionner</MenuItem> {/* nou */}
-              <MenuItem value="approver">Approver</MenuItem>
-              <MenuItem value="auditor">Auditor</MenuItem>
-              <MenuItem value="admin">Admin</MenuItem>
-            </Select>
-          </FormControl>
-
-          <Divider sx={{ my: 2, borderColor: 'rgba(255,255,255,0.12)' }} />
-
-          {lastSnapshot && (
-            <Button
-              variant="outlined"
-              color="inherit"
-              size="small"
-              sx={{ mt: 2 }}
-              onClick={undoLastMerge}
-            >
-              Undo last merge
-            </Button>
-          )}
-        </Box>
-      </Drawer>
-
-      <Box component="main" sx={{ flexGrow: 1, p: 3, ml: `${drawerWidth}px` }}>
+            <FormControl size="small" fullWidth sx={{ mb: 2 }}>
+              <InputLabel id="role-label">Role</InputLabel>
+              <Select
+                labelId="role-label"
+                label="Role"
+                value={role}
+                onChange={(e) => setRole(e.target.value as any)}
+                disabled={roleSource === 'server'}
+              >
+                <MenuItem value="viewer">Viewer</MenuItem>
+                <MenuItem value="receptionist">Receptionner</MenuItem>
+                <MenuItem value="approver">Approver</MenuItem>
+                <MenuItem value="auditor">Auditor</MenuItem>
+                <MenuItem value="admin">Admin</MenuItem>
+              </Select>
+            </FormControl>
+            <Divider sx={{ my: 2, borderColor: 'rgba(255,255,255,0.12)' }} />
+            {lastSnapshot && (
+              <Button
+                variant="outlined"
+                color="inherit"
+                size="small"
+                sx={{ mt: 2 }}
+                onClick={undoLastMerge}
+              >
+                Undo last merge
+              </Button>
+            )}
+          </Box>
+        </Drawer>
+      )}
+      <Box component="main" sx={{ flexGrow: 1, p: 3, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', minHeight: '100vh', width: '100%' }}>
         <Toolbar />
-        {children}
+        <Box sx={{ width: '100%', maxWidth: 600, mt: 4 }}>
+          {children}
+        </Box>
       </Box>
-
       <Snackbar open={!!toast} autoHideDuration={2500} message={toast ?? ''} onClose={clearToast} />
     </Box>
   );
