@@ -77,3 +77,19 @@ http://localhost:8000
 
 ### 7. Get all matches
 - **Endpoint**: `GET /patients/matches?run_id=2`
+
+### 8. Merge 
+- **Endpoint**: `POST /patients/merge`
+- Body: JSON
+```
+{
+  "master_record_id": "3",
+  "duplicate_record_ids": ["1194"],
+  "reason": "manual review: SSN hard match",
+  "updates": {
+    "first_name": "David",
+    "address": "3573 Robbin sStravenue"
+  }
+}
+
+```

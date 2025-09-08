@@ -1,12 +1,13 @@
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Body
 from sqlmodel import Session, select, func
 from ..utils import resolve_run_id
 from ..db import get_session
-from ..models import Patient, Link, ClusterAssignment
-from ..schemas import PatientOut, DuplicateCandidate, PatientWithDuplicates
+from ..models import Patient, Link, ClusterAssignment, PatientMergeHistory
+from ..schemas import PatientOut, DuplicateCandidate, PatientWithDuplicates, MergeRequest, MergeResponse, PatientUpdate
 from ..utils import resolve_run_id
 from ..services.auth_service import get_current_user
+from datetime import datetime
 
 router = APIRouter(prefix="/patients", tags=["patients"])
 
@@ -24,7 +25,9 @@ def _patient_to_out(p: Patient, cluster_id: Optional[str]) -> PatientOut:
         ssn=p.ssn,
         phone_number=p.phone_number,
         email=p.email,
-        cluster_id=cluster_id
+        cluster_id=cluster_id,
+        is_deleted=p.is_deleted,
+        merged_into=p.merged_into
     )
 
 @router.get("/search", response_model=List[PatientWithDuplicates], dependencies=[Depends(get_current_user)])
@@ -229,27 +232,6 @@ def list_all_matches_grouped(
 
     results: List[PatientWithDuplicates] = []
 
-    # helper to convert model -> schema with cluster id
-    def _to_out(rid: str) -> PatientOut | None:
-        p = rid_to_pat.get(rid)
-        if not p:
-            return None
-        return PatientOut(
-            record_id=p.record_id,
-            original_record_id=p.original_record_id,
-            first_name=p.first_name,
-            last_name=p.last_name,
-            gender=p.gender,
-            date_of_birth=p.date_of_birth,
-            address=p.address,
-            city=p.city,
-            county=p.county,
-            ssn=p.ssn,
-            phone_number=p.phone_number,
-            email=p.email,
-            cluster_id=rid_to_cluster.get(p.record_id),
-        )
-
     # rank representative: pick the lexicographically smallest record_id
     def _representative(rids: List[str]) -> str:
         # you can change this to a "most connected" node if needed
@@ -263,7 +245,7 @@ def list_all_matches_grouped(
 
     for idx, (group_key, member_ids) in enumerate(sorted(groups.items())[:limit_groups]):
         rep_rid = _representative(member_ids)
-        rep_patient = _to_out(rep_rid)
+        rep_patient = _patient_to_out(rid_to_pat.get(rep_rid), rid_to_cluster.get(rep_rid))
 
         # gather all links touching any member (only 'match' links already)
         best_by_other: Dict[str, Link] = {}
@@ -280,6 +262,7 @@ def list_all_matches_grouped(
         for other_id, l in sorted(best_by_other.items(), key=lambda kv: -(kv[1].score or 0.0)):
             if other_id == rep_rid:
                 continue
+            other_p = rid_to_pat.get(other_id)
             dups.append(DuplicateCandidate(
                 other_record_id=other_id,
                 decision="match",
@@ -287,7 +270,7 @@ def list_all_matches_grouped(
                 s_name=l.s_name, s_dob=l.s_dob, s_email=l.s_email, s_phone=l.s_phone,
                 s_address=l.s_address, s_gender=l.s_gender, s_ssn_hard_match=l.s_ssn_hard_match,
                 reason=l.reason,
-                other_patient=_to_out(other_id),
+                other_patient=_patient_to_out(other_p, rid_to_cluster.get(other_id)) if other_p else None,
             ))
 
         results.append(PatientWithDuplicates(patient=rep_patient, duplicates=dups))
@@ -352,3 +335,93 @@ def get_patient_with_dups(
             ))
 
     return PatientWithDuplicates(patient=patient_out, duplicates=dups)
+
+MERGE_MUTABLE_FIELDS = {
+    "original_record_id", "first_name", "last_name", "gender", "date_of_birth",
+    "address", "city", "county", "ssn", "phone_number", "email"
+}
+
+@router.post("/merge", response_model=MergeResponse, dependencies=[Depends(get_current_user)])
+def merge_patients(
+    req: MergeRequest = Body(...),
+    session: Session = Depends(get_session),
+):
+    # 0) găsește masterul
+    master = session.exec(
+        select(Patient).where(Patient.record_id == req.master_record_id, Patient.is_deleted == False)
+    ).first()
+    if not master:
+        raise HTTPException(status_code=404, detail=f"Master patient {req.master_record_id} not found or deleted")
+
+    merged_ids: List[str] = []
+    now = datetime.utcnow()
+
+    # 1) marchează duplicatele (soft delete by default)
+    for dup_id in req.duplicate_record_ids:
+        dup = session.exec(
+            select(Patient).where(Patient.record_id == dup_id, Patient.is_deleted == False)
+        ).first()
+        if not dup:
+            continue
+
+        if req.hard_delete_duplicates:
+            # hard delete (rare în practică; atenție la FKs – aici nu avem)
+            session.delete(dup)
+        else:
+            dup.is_deleted = True
+            dup.deleted_at = now
+            dup.merged_into = master.record_id
+
+        merged_ids.append(dup_id)
+
+        session.add(PatientMergeHistory(
+            source_record=dup_id,
+            target_record=master.record_id,
+            reason=req.reason
+        ))
+
+    # 2) mută referințele din Link spre master
+    if merged_ids:
+        links = session.exec(
+            select(Link).where((Link.record_id1.in_(merged_ids)) | (Link.record_id2.in_(merged_ids)))
+        ).all()
+        for l in links:
+            if l.record_id1 in merged_ids:
+                l.record_id1 = master.record_id
+            if l.record_id2 in merged_ids:
+                l.record_id2 = master.record_id
+        updated_links_count = len(links)
+    else:
+        updated_links_count = 0
+
+    # 3) mută și cluster assignment-urile spre master
+    assigns = session.exec(
+        select(ClusterAssignment).where(ClusterAssignment.record_id.in_(merged_ids))
+    ).all()
+    for a in assigns:
+        a.record_id = master.record_id
+    updated_clusters_count = len(assigns)
+
+    # 4) aplică survivorship pe câmpuri (doar ce vine în updates)
+    if req.updates:
+        payload = req.updates.model_dump(exclude_unset=True)
+        for field, value in payload.items():
+            if field in MERGE_MUTABLE_FIELDS:
+                setattr(master, field, value)
+
+    session.commit()
+
+    # reîncarcă masterul pentru răspuns
+    session.refresh(master)
+    master_cluster = session.exec(
+        select(ClusterAssignment).where(ClusterAssignment.record_id == master.record_id)
+    ).first()
+    master_out = _patient_to_out(master, master_cluster.patient_id if master_cluster else None)
+
+    return MergeResponse(
+        master=master.record_id,
+        merged=merged_ids,
+        updated_links=updated_links_count,
+        updated_clusters=updated_clusters_count,
+        master_after=master_out
+    )
