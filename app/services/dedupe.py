@@ -178,14 +178,11 @@ def consolidate_cluster(df, indices):
         "last_name": pick_best("last_name"),
         "gender": pick_best("gender"),
         "date_of_birth": pick_best("date_of_birth"),
-        "street": pick_best("street"),
-        "street_number": pick_best("street_number"),
-        "city": pick_best("city"),
+        "address": pick_best("address"),
         "email": pick_best("email"),
         "phone_number": pick_best("phone_number"),
         "ssn": pick_best("ssn"),
         "full_name": pick_best("__full_name"),
-        "address": pick_best("__address"),
         "aliases": {
             "names": sorted(set([_to_str(v) for v in cluster_df["__full_name"] if pd.notna(v)])),
             "emails": sorted(set([_to_str(v) for v in cluster_df["email"] if pd.notna(v)])),
@@ -200,7 +197,7 @@ def consolidate_cluster(df, indices):
 def prepare_input(df):
     """Map CSV schema to internal fields used for scoring."""
     for col in ["record_id", "first_name", "last_name", "gender", "date_of_birth",
-                "street", "street_number", "city", "ssn", "phone_number", "email", "original_record_id"]:
+                "address", "city", "county", "ssn", "phone_number", "email", "original_record_id"]:
         if col not in df.columns:
             df[col] = ""
 
@@ -212,13 +209,12 @@ def prepare_input(df):
     df["__email"] = df["email"]
     df["__phone"] = df["phone_number"]
     df["__address"] = (
-        df["street"].fillna("").astype(str).str.strip()
-        + " "
-        + df["street_number"].fillna("").astype(str).str.strip()
+        df["address"].fillna("").astype(str).str.strip()
         + ", "
         + df["city"].fillna("").astype(str).str.strip()
+        + ", "
+        + df["county"].fillna("").astype(str).str.strip()
     ).str.replace(r"\s+,", ",", regex=True).str.replace(r"\s+", " ", regex=True).str.strip(", ").str.strip()
-    df["__city"]    = df["city"]
     df["__gender"]  = df["gender"]
     df["__ssn"]     = df["ssn"]
     df["__last_name"] = df["last_name"]

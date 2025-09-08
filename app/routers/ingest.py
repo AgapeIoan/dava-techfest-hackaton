@@ -10,7 +10,7 @@ router = APIRouter(prefix="/ingest", tags=["ingest"])
 
 EXPECTED = [
     "record_id","original_record_id","first_name","last_name","gender","date_of_birth",
-    "street","street_number","city","county","ssn","phone_number","email"
+    "address","city","county","ssn","phone_number","email"
 ]
 
 @router.post("/patients-csv", response_model=IngestResponse)
@@ -27,7 +27,7 @@ def ingest_patients_csv(
         raise HTTPException(status_code=400, detail=f"Missing columns in CSV: {missing}")
 
     # simple upsert by record_id
-    existing = {rid for (rid,) in session.exec(select(Patient.record_id)).all()}
+    #existing = {rid for (rid,) in session.exec(select(Patient.record_id)).all()}
     inserted = 0
     updated = 0
 
@@ -47,8 +47,7 @@ def ingest_patients_csv(
                 last_name=str(r["last_name"]),
                 gender=str(r["gender"]),
                 date_of_birth=str(r["date_of_birth"]),
-                street=str(r["street"]),
-                street_number=str(r["street_number"]),
+                address=str(r["address"]),
                 city=str(r["city"]),
                 county=str(r["county"]),
                 ssn=str(r["ssn"]),

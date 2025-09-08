@@ -41,8 +41,7 @@ class PatientOut(BaseModel):
     last_name: Optional[str] = None
     gender: Optional[str] = None
     date_of_birth: Optional[str] = None
-    street: Optional[str] = None
-    street_number: Optional[str] = None
+    address: Optional[str] = None
     city: Optional[str] = None
     county: Optional[str] = None
     ssn: Optional[str] = None

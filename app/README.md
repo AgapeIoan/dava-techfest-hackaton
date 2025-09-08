@@ -73,5 +73,7 @@ http://localhost:8000
 ```
 
 ### 6. Get patient details by record ID
-- **Endpoint**: `GET /patients/{record_id}?run_id=1
-`
+- **Endpoint**: `GET /patients/{record_id}?run_id=1`
+
+### 7. Get all matches
+- **Endpoint**: `GET /patients/matches?run_id=2`

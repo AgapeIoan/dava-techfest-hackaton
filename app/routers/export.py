@@ -3,14 +3,18 @@ import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlmodel import Session, select
-
+from ..utils import resolve_run_id
 from ..db import get_session
 from ..models import Link
 
 router = APIRouter(prefix="/export", tags=["export"])
 
 @router.get("/links.csv")
-def export_links_csv(run_id: int, session: Session = Depends(get_session)):
+def export_links_csv(
+    run_id: int | None = Query(None, description="If omitted, latest run will be used"),
+    session: Session = Depends(get_session),
+):
+    run_id = resolve_run_id(session, run_id)
     rows = session.exec(select(Link).where(Link.run_id == run_id)).all()
     if not rows:
         raise HTTPException(status_code=404, detail="Nu există link-uri pentru run_id")

@@ -1,10 +1,11 @@
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session, select, func
-
+from ..utils import resolve_run_id
 from ..db import get_session
 from ..models import Patient, Link, ClusterAssignment
 from ..schemas import PatientOut, DuplicateCandidate, PatientWithDuplicates
+from ..utils import resolve_run_id
 
 router = APIRouter(prefix="/patients", tags=["patients"])
 
@@ -16,8 +17,7 @@ def _patient_to_out(p: Patient, cluster_id: Optional[str]) -> PatientOut:
         last_name=p.last_name,
         gender=p.gender,
         date_of_birth=p.date_of_birth,
-        street=p.street,
-        street_number=p.street_number,
+        address=p.address,
         city=p.city,
         county=p.county,
         ssn=p.ssn,
@@ -27,10 +27,9 @@ def _patient_to_out(p: Patient, cluster_id: Optional[str]) -> PatientOut:
     )
 
 @router.get("/search", response_model=List[PatientWithDuplicates])
-@router.get("/search", response_model=List[PatientWithDuplicates])
 def search_by_name(
     name: str = Query(..., description="Numele căutat (parțial sau complet; ex: 'Ion Pop')"),
-    run_id: int = Query(..., description="run_id din care vrei clusterele și link-urile"),
+    run_id: Optional[int] = Query(None, description="If omitted, latest run will be used"),
     limit_patients: int = 50,
     session: Session = Depends(get_session),
 ):
@@ -38,6 +37,7 @@ def search_by_name(
     Returnează o singură intrare per cluster_id (sau per record_id dacă nu există cluster),
     cu duplicatele unificate din toate recordurile din acel cluster.
     """
+    run_id = resolve_run_id(session, run_id)
     name_norm = name.strip().lower()
     name_q = f"%{name_norm}%"
 
@@ -168,13 +168,138 @@ def search_by_name(
 
     return results
 
+@router.get("/matches", response_model=List[PatientWithDuplicates], tags=["patients"])
+def list_all_matches_grouped(
+    run_id: Optional[int] = Query(None, description="If omitted, latest run will be used"),
+    group_by_cluster: bool = Query(True, description="If true, one entry per cluster; else per record"),
+    limit_groups: int = Query(200, description="Max number of groups to return"),
+    session: Session = Depends(get_session),
+):
+    """
+    Return all 'match' links formatted like in patients.py:
+      [
+        {
+          "patient": { ... },           # representative patient
+          "duplicates": [               # only 'match' links
+            { "other_record_id": ..., "decision": "match", "score": ..., "other_patient": {...} },
+            ...
+          ]
+        },
+        ...
+      ]
+
+    By default we group per cluster (one item per Pxxxxx); set group_by_cluster=false for one item per record.
+    """
+    run_id = resolve_run_id(session, run_id)
+    # 1) collect all match links for the run
+    links = session.exec(
+        select(Link)
+        .where(Link.run_id == run_id, Link.decision == "match")
+        .order_by(Link.score.desc())
+    ).all()
+    if not links:
+        return []
+
+    # all record ids that appear in matches
+    all_rids: set[str] = set()
+    for l in links:
+        all_rids.add(l.record_id1)
+        all_rids.add(l.record_id2)
+
+    # fetch patients for those ids
+    pats = session.exec(select(Patient).where(Patient.record_id.in_(list(all_rids)))).all()
+    rid_to_pat: Dict[str, Patient] = {p.record_id: p for p in pats}
+
+    # cluster assignments for those ids
+    assigns = session.exec(
+        select(ClusterAssignment).where(
+            ClusterAssignment.run_id == run_id,
+            ClusterAssignment.record_id.in_(list(all_rids))
+        )
+    ).all()
+    rid_to_cluster: Dict[str, str] = {a.record_id: a.patient_id for a in assigns}
+
+    # group keys: cluster_id or record_id
+    groups: Dict[str, List[str]] = {}
+    for rid in all_rids:
+        key = rid_to_cluster.get(rid) if group_by_cluster else f"RID::{rid}"
+        key = key or f"RID::{rid}"  # fallback if no cluster
+        groups.setdefault(key, []).append(rid)
+
+    results: List[PatientWithDuplicates] = []
+
+    # helper to convert model -> schema with cluster id
+    def _to_out(rid: str) -> PatientOut | None:
+        p = rid_to_pat.get(rid)
+        if not p:
+            return None
+        return PatientOut(
+            record_id=p.record_id,
+            original_record_id=p.original_record_id,
+            first_name=p.first_name,
+            last_name=p.last_name,
+            gender=p.gender,
+            date_of_birth=p.date_of_birth,
+            address=p.address,
+            city=p.city,
+            county=p.county,
+            ssn=p.ssn,
+            phone_number=p.phone_number,
+            email=p.email,
+            cluster_id=rid_to_cluster.get(p.record_id),
+        )
+
+    # rank representative: pick the lexicographically smallest record_id
+    def _representative(rids: List[str]) -> str:
+        # you can change this to a "most connected" node if needed
+        return sorted(rids)[0]
+
+    # index links by both directions for quick lookup
+    links_by_rid: Dict[str, List[Link]] = {}
+    for l in links:
+        links_by_rid.setdefault(l.record_id1, []).append(l)
+        links_by_rid.setdefault(l.record_id2, []).append(l)
+
+    for idx, (group_key, member_ids) in enumerate(sorted(groups.items())[:limit_groups]):
+        rep_rid = _representative(member_ids)
+        rep_patient = _to_out(rep_rid)
+
+        # gather all links touching any member (only 'match' links already)
+        best_by_other: Dict[str, Link] = {}
+        for rid in member_ids:
+            for l in links_by_rid.get(rid, []):
+                other = l.record_id2 if l.record_id1 == rid else l.record_id1
+                # keep best (highest score) per other
+                cur = best_by_other.get(other)
+                if (cur is None) or ((l.score or 0) > (cur.score or 0)):
+                    best_by_other[other] = l
+
+        # build duplicates list (exclude the representative itself if present)
+        dups: List[DuplicateCandidate] = []
+        for other_id, l in sorted(best_by_other.items(), key=lambda kv: -(kv[1].score or 0.0)):
+            if other_id == rep_rid:
+                continue
+            dups.append(DuplicateCandidate(
+                other_record_id=other_id,
+                decision="match",
+                score=l.score or 0.0,
+                s_name=l.s_name, s_dob=l.s_dob, s_email=l.s_email, s_phone=l.s_phone,
+                s_address=l.s_address, s_gender=l.s_gender, s_ssn_hard_match=l.s_ssn_hard_match,
+                reason=l.reason,
+                other_patient=_to_out(other_id),
+            ))
+
+        results.append(PatientWithDuplicates(patient=rep_patient, duplicates=dups))
+
+    return results
 
 @router.get("/{record_id}", response_model=PatientWithDuplicates)
 def get_patient_with_dups(
     record_id: str,
-    run_id: int = Query(..., description="run_id din care vrei clusterele și link-urile"),
+    run_id: Optional[int] = Query(None, description="If omitted, latest run will be used"),
     session: Session = Depends(get_session),
 ):
+    run_id = resolve_run_id(session, run_id)
     p = session.exec(select(Patient).where(Patient.record_id == record_id)).first()
     if not p:
         raise HTTPException(status_code=404, detail="Pacientul nu există")

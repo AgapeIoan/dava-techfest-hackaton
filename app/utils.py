@@ -2,10 +2,12 @@ import pandas as pd
 from fastapi import HTTPException
 from sqlmodel import Session, select
 from .models import Patient, Link, ClusterAssignment
+from typing import Optional
+from .models import DedupeRun
 
 PATIENTS_COLUMNS = [
     "record_id","original_record_id","first_name","last_name","gender","date_of_birth",
-    "street","street_number","city","county","ssn","phone_number","email"
+    "address","city","county","ssn","phone_number","email"
 ]
 
 def df_from_patients_table(session: Session) -> pd.DataFrame:
@@ -55,3 +57,13 @@ def clusters_to_assignments(clusters: list[list[str]], run_id: int) -> list[Clus
         for rid in members:
             assignments.append(ClusterAssignment(run_id=run_id, record_id=str(rid), patient_id=pid))
     return assignments
+
+def resolve_run_id(session: Session, run_id: Optional[int]) -> int:
+    if run_id is not None:
+        return run_id
+    latest = session.exec(
+        select(DedupeRun).order_by(DedupeRun.created_at.desc())
+    ).first()
+    if not latest:
+        raise HTTPException(status_code=404, detail="No dedupe run found. Please run /dedupe/run first.")
+    return latest.id
