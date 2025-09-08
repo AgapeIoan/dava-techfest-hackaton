@@ -291,18 +291,24 @@ const useDupeStore = create<State>()((set, get) => ({
       set({ toast: 'Doar admin sau receptionist poate folosi search.' });
       return;
     }
-    if (!first || !last) {
-      set({ toast: 'Completează numele și prenumele!' });
+    if (!first) {
+      set({ toast: 'Completează prenumele!' });
       return;
     }
     set({ loading: true, patient: null, dupes: [], selected: {} });
-    // MOCK: caută pacientul după first+last
-    const patient = db.find(p => p.firstName.toLowerCase() === first.toLowerCase() && p.lastName.toLowerCase() === last.toLowerCase());
-    if (!patient) {
-      set({ loading: false, toast: 'Nu s-a găsit pacientul.' });
-      return;
-    }
-    set({ patient, loading: false, toast: null });
+
+    // Caută toți pacienții al căror prenume și nume încep cu textul introdus
+    const matches = db.filter(p =>
+      p.firstName.toLowerCase().startsWith(first.toLowerCase()) &&
+      (!last || p.lastName.toLowerCase().startsWith(last.toLowerCase()))
+    );
+
+    set({
+      patient: matches[0] || null,
+      dupes: matches.slice(1),
+      loading: false,
+      toast: matches.length ? null : 'Nu s-a găsit pacientul.'
+    });
   },
   async findDuplicates() {
     const { first, last, db } = get();
@@ -315,19 +321,10 @@ const useDupeStore = create<State>()((set, get) => ({
     } catch {}
     // Find all patients with matching first and last name (case-insensitive)
     let matches = db.filter(p =>
-      p.firstName.toLowerCase() === first.toLowerCase() &&
-      p.lastName.toLowerCase() === last.toLowerCase()
+      p.firstName.toLowerCase().startsWith(first.toLowerCase()) &&
+      p.lastName.toLowerCase().startsWith(last.toLowerCase())
     );
-    // If dob is provided, sort matches so exact dob comes first
-    if (dob) {
-      matches = matches.sort((a, b) => {
-        if (a.dob === dob && b.dob !== dob) return -1;
-        if (a.dob !== dob && b.dob === dob) return 1;
-        return 0;
-      });
-    }
-    const patient = matches[0] || null;
-    set({ patient, loading: false, toast: patient ? null : 'Nu s-a găsit pacientul.' });
+    set({ patient: matches[0] || null, dupes: matches.slice(1), loading: false, toast: matches.length ? null : 'Nu s-a găsit pacientul.' });
   },
   toggleSelect: (id: string, val: boolean) => set(s => ({ selected: { ...s.selected, [id]: val } })),
   startMerge() { /* … */ },

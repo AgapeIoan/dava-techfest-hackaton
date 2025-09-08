@@ -9,7 +9,8 @@ import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import useDupeStore from '../store/dupeStore'
+import DuplicateGroup from "../components/DuplicateGroup";
+import useDupeStore from "../store/dupeStore";
 
 
 function maskSSN(ssn?: string) {
@@ -36,22 +37,27 @@ function MatchBar({ value }: { value: number }) {
 
 export default function DuplicatesPage() {
 
-  const {
-    first, last, setFirst, setLast, loading,
-  patient, dupes, findDuplicates, isAuthenticated
-  } = useDupeStore()
+  const { first, last, setFirst, setLast, loading, patient, dupes, findDuplicates, isAuthenticated, role } = useDupeStore()
   const [dob, setDob] = useState<string>('');
   const [searchAttempted, setSearchAttempted] = useState(false);
 
   const navigate = useNavigate()
 
   // Reset searchAttempted when user types
-  const sorted = dupes;
+  const sorted = Array.isArray(dupes) ? dupes : [];
   function handleFieldChange(setter: (v: string) => void, value: string) {
     setter(value);
     setSearchAttempted(false);
   }
 
+  const isReceptionist = isAuthenticated && role === "receptionist";
+
+  const handlePatientSave = (updated: Patient) => {
+    // Actualizează pacientul în store sau trimite la backend
+    // Exemplu: updatePatient(updated);
+  };
+
+  const dupesSafe = Array.isArray(dupes) ? dupes : [];
 
 
   return (
@@ -149,7 +155,7 @@ export default function DuplicatesPage() {
       )}
 
       {/* Skeleton pentru tabel */}
-      {loading && patient && dupes.length === 0 && (
+      {loading && patient && sorted.length === 0 && (
         <Paper sx={{ p: 2 }}>
           {Array.from({length:4}).map((_,i)=>(
             <Skeleton key={i} height={36} sx={{ mb: 1 }} />
@@ -158,10 +164,10 @@ export default function DuplicatesPage() {
       )}
 
 
-      {dupes.length > 0 && (
+      {sorted.length > 0 && (
         <Paper sx={{ p: 2 }}>
           <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1 }}>
-            Potential duplicates: {dupes.length}
+            Potential duplicates: {sorted.length}
           </Typography>
           <Table size="small">
             <TableHead>
@@ -185,10 +191,10 @@ export default function DuplicatesPage() {
                 <TableRow key={row.id} hover>
                   <TableCell>{row.firstName}</TableCell>
                   <TableCell>{row.lastName}</TableCell>
-                  <TableCell><MatchBar value={row.matchPct} /></TableCell>
+                  <TableCell><MatchBar value={typeof row.matchPct === 'number' ? row.matchPct : 0} /></TableCell>
                   <TableCell>
                     <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
-                      {row.reasons.map((r, i) => (
+                      {(Array.isArray(row.reasons) ? row.reasons : []).map((r, i) => (
                         <Tooltip key={i} title={r} arrow>
                           <Chip label={r} size="small"
                             color={r.includes('SSN') || r.includes('DOB') ? 'success' : 'default'} />
@@ -221,6 +227,28 @@ export default function DuplicatesPage() {
             Add new patient
           </Button>
         </Paper>
+      )}
+
+      <h2>Profil pacient</h2>
+      {patient && (
+        <DuplicateGroup
+          patient={patient}
+          isReceptionist={isReceptionist}
+          onSave={handlePatientSave}
+        />
+      )}
+      {(dupes ?? []).length > 0 && (
+        <div>
+          <h3>Alți pacienți găsiți:</h3>
+          {(dupes ?? []).map(p => (
+            <DuplicateGroup
+              key={p.id}
+              patient={p}
+              isReceptionist={isReceptionist}
+              onSave={handlePatientSave}
+            />
+          ))}
+        </div>
       )}
     </>
   )
