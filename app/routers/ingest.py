@@ -50,7 +50,7 @@ def ingest_patients_csv(
             obj = session.exec(select(Patient).where(Patient.record_id == rid)).first()
 
             if obj:
-                # dacă recordul a fost merge-uit într-un master, protejează-l
+                # If the record was merged into a master, protect it
                 if obj.merged_into:
                     if reject_merged:
                         raise HTTPException(
@@ -58,7 +58,7 @@ def ingest_patients_csv(
                             detail=f"Record {rid} was merged into {obj.merged_into}; update rejected."
                         )
                     else:
-                        # policy alternativă: propagă actualizarea către master
+                        # Alternative policy: propagate the update to the master
                         master = session.exec(
                             select(Patient).where(Patient.record_id == obj.merged_into)
                         ).first()
@@ -71,12 +71,12 @@ def ingest_patients_csv(
                 else:
                     target = obj
 
-                # dacă era soft-deleted și apare din nou -> restore (dacă e permis)
+                # If it was soft-deleted and appears again -> restore (if allowed)
                 if target.is_deleted and restore_deleted:
                     target.is_deleted = False
                     target.deleted_at = None
 
-                # update câmpuri
+                # Update fields
                 target.original_record_id = str(r["original_record_id"])
                 target.first_name = str(r["first_name"])
                 target.last_name  = str(r["last_name"])
@@ -88,7 +88,7 @@ def ingest_patients_csv(
                 target.ssn        = str(r["ssn"])
                 target.phone_number = str(r["phone_number"])
                 target.email      = str(r["email"])
-                # audit opțional
+                # Optional audit
                 if hasattr(target, "source"):
                     target.source = src
                 if hasattr(target, "updated_at"):
@@ -97,7 +97,7 @@ def ingest_patients_csv(
                 updated += 1
 
             else:
-                # insert nou
+                # New insert
                 newp = Patient(
                     record_id=rid,
                     original_record_id=str(r["original_record_id"]),
@@ -133,7 +133,7 @@ def ingest_patients_csv(
         raise
     except IntegrityError as e:
         session.rollback()
-        raise HTTPException(status_code=409, detail=f"Integrity error: {e.orig}")  # de ex. duplicate key
+        raise HTTPException(status_code=409, detail=f"Integrity error: {e.orig}")  # e.g. duplicate key
     except Exception as e:
         session.rollback()
         raise HTTPException(status_code=500, detail=f"Ingest error: {e}")
