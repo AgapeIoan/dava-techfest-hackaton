@@ -1,4 +1,4 @@
-import { PropsWithChildren, useMemo, useEffect, useState } from 'react';
+import { PropsWithChildren, useMemo, useEffect, useState, useRef } from 'react';
 import {
   AppBar,
   Toolbar,
@@ -35,12 +35,26 @@ import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown'; // ⬅️ pen
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import { Link, useLocation } from 'react-router-dom';
+import PersonIcon from '@mui/icons-material/Person';
+import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
+import { Link, useLocation , useNavigate } from 'react-router-dom';
 import useDupeStore from '../store/dupeStore';
+import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 
 const drawerWidth = 280;
 
+// A helper custom hook to get the previous value of a state or prop
+function usePrevious<T>(value: T): T | undefined {
+  const ref = useRef<T>();
+  useEffect(() => {
+    ref.current = value;
+  });
+  return ref.current;
+}
+
 export default function Layout({ children }: PropsWithChildren) {
   const loc = useLocation();
+  const navigate = useNavigate(); // Get the navigate function
   const {
     loading,
     selected,
@@ -53,12 +67,25 @@ export default function Layout({ children }: PropsWithChildren) {
     clearToast,
     undoLastMerge,
     lastSnapshot,
-    roleSource, /*loadRoleFromServer,*/ // rămâne opțional
+    roleSource, /*loadRoleFromServer,*/
     isAuthenticated,
     userName,
     loginWithEmail,
-    logout, // ⬅️ auth din store
+    logout,
   } = useDupeStore();
+
+  // Track the previous authentication state
+  const prevIsAuthenticated = usePrevious(isAuthenticated);
+
+  // 👇 3. Add the redirect logic using a useEffect hook
+  useEffect(() => {
+    // This effect runs whenever the authentication status changes.
+    // The condition checks if the user JUST logged in (i.e., they were not authenticated before, but are now)
+    // AND if their role is 'admin'.
+    if (!prevIsAuthenticated && isAuthenticated && role === 'admin') {
+      navigate('/admin', { replace: true }); // Redirect to the admin page
+    }
+  }, [isAuthenticated, prevIsAuthenticated, role, navigate]);
 
   // dacă vei folosi /api/me pe viitor, poți activa asta:
   // useEffect(() => { loadRoleFromServer() }, [loadRoleFromServer])
@@ -191,6 +218,7 @@ export default function Layout({ children }: PropsWithChildren) {
 
         <Toolbar />
         <Box sx={{ p: 2 }}>
+          {/* --- Public Links --- */}
           <List dense>
             <ListItemButton
               component={Link}
@@ -202,24 +230,7 @@ export default function Layout({ children }: PropsWithChildren) {
               </ListItemIcon>
               <ListItemText primary="Find Duplicates" />
             </ListItemButton>
-            <ListItemButton
-              component={Link}
-              to="/merge"
-              selected={loc.pathname.startsWith('/merge')}
-            >
-              <ListItemIcon>
-                <MergeIcon htmlColor="#FF6A13" />
-              </ListItemIcon>
-              <ListItemText primary="Merge View" />
-              {selectedCount > 0 && (
-                <Chip
-                  label={selectedCount}
-                  color="primary"
-                  size="small"
-                  sx={{ ml: 1 }}
-                />
-              )}
-            </ListItemButton>
+
             <ListItemButton
               component={Link}
               to="/security"
@@ -230,6 +241,30 @@ export default function Layout({ children }: PropsWithChildren) {
               </ListItemIcon>
               <ListItemText primary="Security & Privacy" />
             </ListItemButton>
+
+            {/* --- Admin-Only Links --- */}
+            {role === 'admin' && (
+              <>
+                <ListItemButton
+                  component={Link}
+                  to="/merge"
+                  selected={loc.pathname.startsWith('/merge')}
+                >
+                  <ListItemIcon>
+                    <MergeIcon htmlColor="#FF6A13" />
+                  </ListItemIcon>
+                  <ListItemText primary="Merge View" />
+                  {selectedCount > 0 && (
+                    <Chip
+                      label={selectedCount}
+                      color="primary"
+                      size="small"
+                      sx={{ ml: 1 }}
+                    />
+                  )}
+                </ListItemButton>
+              </>
+            )}
           </List>
 
           <Divider sx={{ my: 2, borderColor: 'rgba(255,255,255,0.12)' }} />
@@ -268,14 +303,6 @@ export default function Layout({ children }: PropsWithChildren) {
           </FormControl>
 
           <Divider sx={{ my: 2, borderColor: 'rgba(255,255,255,0.12)' }} />
-
-          <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
-            <HistoryIcon fontSize="small" />
-            <Typography variant="subtitle2">Recent Activity</Typography>
-          </Stack>
-          <Box sx={{ display: 'grid', gap: 1 }}>
-            {/* … activitatea ta existentă … */}
-          </Box>
 
           {lastSnapshot && (
             <Button
