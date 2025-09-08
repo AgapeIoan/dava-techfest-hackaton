@@ -72,17 +72,28 @@ export default function Layout({ children }: PropsWithChildren) {
   } = useDupeStore();
 
   // Track the previous authentication state
-  const prevIsAuthenticated = usePrevious(isAuthenticated);
+//   const prevIsAuthenticated = usePrevious(isAuthenticated);
 
   // 👇 3. Add the redirect logic using a useEffect hook
+//   useEffect(() => {
+//     // This effect runs whenever the authentication status changes.
+//     // The condition checks if the user JUST logged in (i.e., they were not authenticated before, but are now)
+//     // AND if their role is 'admin'.
+//     if (!prevIsAuthenticated && isAuthenticated && role === 'admin') {
+//       navigate('/admin', { replace: true }); // Redirect to the admin page
+//     }
+//   }, [isAuthenticated, prevIsAuthenticated, role, navigate]);
+
+   // Redirect after login: admin -> /admin, receptionist -> /duplicates
   useEffect(() => {
-    // This effect runs whenever the authentication status changes.
-    // The condition checks if the user JUST logged in (i.e., they were not authenticated before, but are now)
-    // AND if their role is 'admin'.
-    if (!prevIsAuthenticated && isAuthenticated && role === 'admin') {
-      navigate('/admin', { replace: true }); // Redirect to the admin page
+  if (isAuthenticated) {
+      if (role === 'admin' && loc.pathname !== '/admin') {
+        navigate('/admin', { replace: true });
+      } else if (role === 'receptionist' && loc.pathname !== '/duplicates') {
+        navigate('/duplicates', { replace: true });
+      }
     }
-  }, [isAuthenticated, prevIsAuthenticated, role, navigate]);
+  }, [isAuthenticated, role, navigate, loc.pathname]);
 
   // dacă vei folosi /api/me pe viitor, poți activa asta:
   // useEffect(() => { loadRoleFromServer() }, [loadRoleFromServer])
@@ -217,6 +228,7 @@ export default function Layout({ children }: PropsWithChildren) {
             </List>
           </Menu>
         </Toolbar>
+
         {loading && <LinearProgress color="primary" />}
       </AppBar>
 

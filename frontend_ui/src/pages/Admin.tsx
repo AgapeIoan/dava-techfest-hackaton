@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Box, Button, Typography, Paper, CircularProgress, Pagination } from '@mui/material'
+import { Box, Button, Grid, Typography, Paper, CircularProgress, Pagination, Stack, FormControlLabel, Checkbox  } from '@mui/material'
 import DuplicateGroup from '../components/DuplicateGroup'
 
 // Let's define the shape of our data with TypeScript Interfaces.
@@ -51,6 +51,15 @@ export default function AdminPage() {
   const [isLoading, setIsLoading] = useState(false)
   // For pagination.
   const [currentPage, setCurrentPage] = useState(1)
+  // New state to track if a search has been initiated
+  const [searchPerformed, setSearchPerformed] = useState(false);
+
+  // --- PAGINATION LOGIC ---
+  const pageCount = Math.ceil(duplicateGroups.length / PROFILES_PER_PAGE);
+  const paginatedGroups = duplicateGroups.slice(
+    (currentPage - 1) * PROFILES_PER_PAGE,
+    currentPage * PROFILES_PER_PAGE
+  );
 
 
   // --- ACTION HANDLERS ---
@@ -63,6 +72,7 @@ export default function AdminPage() {
     setTimeout(() => {
       setDuplicateGroups(MOCK_DUPLICATE_DATA)
       setIsLoading(false)
+      setSearchPerformed(true); // Mark that a search has been performed
     }, 1500) // wait 1.5 seconds
   }
 
@@ -97,12 +107,25 @@ export default function AdminPage() {
     setCurrentPage(value);
   };
 
-  // --- PAGINATION LOGIC ---
-  const pageCount = Math.ceil(duplicateGroups.length / PROFILES_PER_PAGE);
-  const paginatedGroups = duplicateGroups.slice(
-    (currentPage - 1) * PROFILES_PER_PAGE,
-    currentPage * PROFILES_PER_PAGE
-  );
+  // Handler for the new "Select All" checkbox
+  const handleSelectAllOnPage = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const newSelection = new Set(selectedGroups);
+    const idsOnCurrentPage = paginatedGroups.map(g => g.mainProfile.id);
+
+    if (event.target.checked) {
+        // Add all IDs from the current page to the selection
+        idsOnCurrentPage.forEach(id => newSelection.add(id));
+    } else {
+        // Remove all IDs from the current page from the selection
+        idsOnCurrentPage.forEach(id => newSelection.delete(id));
+    }
+    setSelectedGroups(newSelection);
+  };
+
+  // Logic to determine the state of the "Select All" checkbox
+  const idsOnCurrentPage = paginatedGroups.map(g => g.mainProfile.id);
+  const selectedOnPageCount = idsOnCurrentPage.filter(id => selectedGroups.has(id)).length;
+  const areAllOnPageSelected = idsOnCurrentPage.length > 0 && selectedOnPageCount === idsOnCurrentPage.length;
 
   // --- RENDER LOGIC ---
   // This is what the user sees. We use conditional rendering to show different UI
@@ -110,11 +133,14 @@ export default function AdminPage() {
   return (
     <Box sx={{ padding: 3 }}>
       <Typography variant="h4" gutterBottom>
-        Admin - Find & Merge Duplicates
+        Find & Merge Duplicates
       </Typography>
 
       {/* Action Buttons */}
-      <Paper sx={{ padding: 2, marginBottom: 3, display: 'flex', gap: 2 }}>
+      <Paper sx={{ padding: 2, marginBottom: 3 }}>
+        <Typography variant="h6" sx={{ mb: 2 }}>
+          Find Duplicates
+        </Typography>
         <Button variant="contained" onClick={() => alert('File import logic goes here!')}>
           Import CSV
         </Button>
