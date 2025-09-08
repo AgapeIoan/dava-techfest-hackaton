@@ -32,14 +32,14 @@ def _patient_to_out(p: Patient, cluster_id: Optional[str]) -> PatientOut:
 
 @router.get("/search", response_model=List[PatientWithDuplicates], dependencies=[Depends(get_current_user)])
 def search_by_name(
-    name: str = Query(..., description="Numele căutat (parțial sau complet; ex: 'Ion Pop')"),
+    name: str = Query(..., description="Searched name (partial or full; e.g. 'Ion Pop')"),
     run_id: Optional[int] = Query(None, description="If omitted, latest run will be used"),
     limit_patients: int = 50,
     session: Session = Depends(get_session),
 ):
     """
-    Returnează o singură intrare per cluster_id (sau per record_id dacă nu există cluster),
-    cu duplicatele unificate din toate recordurile din acel cluster.
+    Returns a single entry per cluster_id (or per record_id if there is no cluster),
+    with duplicates unified from all records in that cluster.
     """
     run_id = resolve_run_id(session, run_id)
     name_norm = name.strip().lower()
@@ -59,7 +59,7 @@ def search_by_name(
     if not patients:
         return []
 
-    # cluster pentru toți candidații
+    # --- fetch cluster assignments for those patients ---
     record_ids = [p.record_id for p in patients]
     assigns = session.exec(
         select(ClusterAssignment).where(
@@ -340,13 +340,12 @@ MERGE_MUTABLE_FIELDS = {
     "original_record_id", "first_name", "last_name", "gender", "date_of_birth",
     "address", "city", "county", "ssn", "phone_number", "email"
 }
-
 @router.post("/merge", response_model=MergeResponse, dependencies=[Depends(get_current_user)])
 def merge_patients(
     req: MergeRequest = Body(...),
     session: Session = Depends(get_session),
 ):
-    # 0) găsește masterul
+    # 0) find master (active)
     master = session.exec(
         select(Patient).where(Patient.record_id == req.master_record_id, Patient.is_deleted == False)
     ).first()
@@ -356,7 +355,7 @@ def merge_patients(
     merged_ids: List[str] = []
     now = datetime.utcnow()
 
-    # 1) marchează duplicatele (soft delete by default)
+    # 1) mark duplicates as deleted (soft delete) and log in history
     for dup_id in req.duplicate_record_ids:
         dup = session.exec(
             select(Patient).where(Patient.record_id == dup_id, Patient.is_deleted == False)
@@ -365,12 +364,13 @@ def merge_patients(
             continue
 
         if req.hard_delete_duplicates:
-            # hard delete (rare în practică; atenție la FKs – aici nu avem)
+            # Hard delete
             session.delete(dup)
         else:
             dup.is_deleted = True
             dup.deleted_at = now
             dup.merged_into = master.record_id
+            session.add(dup)
 
         merged_ids.append(dup_id)
 
@@ -380,38 +380,89 @@ def merge_patients(
             reason=req.reason
         ))
 
-    # 2) mută referințele din Link spre master
+    # 2) remap links from duplicates to master
     if merged_ids:
-        links = session.exec(
+        # all links touching any of the merged_ids
+        links_touched = session.exec(
             select(Link).where((Link.record_id1.in_(merged_ids)) | (Link.record_id2.in_(merged_ids)))
         ).all()
-        for l in links:
+
+        # remap to master
+        for l in links_touched:
             if l.record_id1 in merged_ids:
                 l.record_id1 = master.record_id
             if l.record_id2 in merged_ids:
                 l.record_id2 = master.record_id
-        updated_links_count = len(links)
+            session.add(l)
+
+        # 2.a) remove self-links (record_id1 == record_id2)
+        for l in list(links_touched):
+            if l.record_id1 == l.record_id2:
+                session.delete(l)
+
+        # 2.b) canonize pairs (record_id1 < record_id2)
+        def _canon_pair(a: str, b: str) -> tuple[str, str, bool]:
+            if a <= b:
+                return a, b, False
+            else:
+                return b, a, True
+
+        links_with_master = session.exec(
+            select(Link).where((Link.record_id1 == master.record_id) | (Link.record_id2 == master.record_id))
+        ).all()
+
+        for l in links_with_master:
+            a, b, swapped = _canon_pair(l.record_id1, l.record_id2)
+            if swapped:
+                l.record_id1, l.record_id2 = a, b
+                session.add(l)
+
+        # 2.c) dedup: keep only the best link per (record_id1, record_id2, decision)
+        best_by_key: Dict[tuple[int, str, str, str], Link] = {}
+
+        links_with_master = session.exec(
+            select(Link).where((Link.record_id1 == master.record_id) | (Link.record_id2 == master.record_id))
+        ).all()
+
+        for l in links_with_master:
+            key = (l.run_id, l.record_id1, l.record_id2, l.decision)
+            keep = best_by_key.get(key)
+            if (keep is None) or ((l.score or 0.0) > (keep.score or 0.0)):
+                best_by_key[key] = l
+
+        # remove non-best
+        best_ids = {link.id for link in best_by_key.values() if link.id is not None}
+        for l in links_with_master:
+            if l.id is not None and l.id not in best_ids:
+                session.delete(l)
+
+        updated_links_count = len(best_by_key)
     else:
         updated_links_count = 0
 
-    # 3) mută și cluster assignment-urile spre master
-    assigns = session.exec(
-        select(ClusterAssignment).where(ClusterAssignment.record_id.in_(merged_ids))
-    ).all()
-    for a in assigns:
-        a.record_id = master.record_id
-    updated_clusters_count = len(assigns)
+    # 3) move cluster assignments from duplicates to master
+    if merged_ids:
+        assigns = session.exec(
+            select(ClusterAssignment).where(ClusterAssignment.record_id.in_(merged_ids))
+        ).all()
+        for a in assigns:
+            a.record_id = master.record_id
+            session.add(a)
+        updated_clusters_count = len(assigns)
+    else:
+        updated_clusters_count = 0
 
-    # 4) aplică survivorship pe câmpuri (doar ce vine în updates)
+    # 4) survivorship - update master with provided fields
     if req.updates:
         payload = req.updates.model_dump(exclude_unset=True)
         for field, value in payload.items():
             if field in MERGE_MUTABLE_FIELDS:
                 setattr(master, field, value)
 
+    session.add(master)
     session.commit()
 
-    # reîncarcă masterul pentru răspuns
+    # 5) return info about the merged master
     session.refresh(master)
     master_cluster = session.exec(
         select(ClusterAssignment).where(ClusterAssignment.record_id == master.record_id)
