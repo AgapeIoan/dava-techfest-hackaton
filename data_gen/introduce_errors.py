@@ -16,6 +16,9 @@ CORRUPTIBLE_FIELDS = [
     "city", "county", "ssn", "phone_number", "email"
 ]
 
+MIN_ERRORS_PER_RECORD = 1
+MAX_ERRORS_PER_RECORD = 6
+
 # A compact seed of common US first names with known spelling variants
 COMMON_FIRST_NAMES = [
     # Catherine-family
@@ -387,36 +390,33 @@ def main():
     corrupted_duplicates = []
     last_record_id = max(int(r['record_id']) for r in clean_data)
 
-    # --- Coverage phase: guarantee each op appears at least once ---
-    # We need at least len(error_operations) duplicates to cover all.
-    coverage_count = min(len(error_operations), len(records_to_duplicate))
-    coverage_ops = error_operations[:coverage_count]  # first K ops
-    random.shuffle(coverage_ops)  # optional: vary which goes first
-
-    # fallback list for when an op can't modify a row
-    fallback_ops = error_operations
-
-    # Apply one distinct op to the first 'coverage_count' duplicates
-    for i in range(coverage_count):
-        original_record = records_to_duplicate[i]
+    for i, original_record in enumerate(records_to_duplicate):
         new_duplicate = original_record.copy()
         new_duplicate['record_id'] = last_record_id + 1 + i
         new_duplicate['original_record_id'] = original_record['record_id']
 
-        op = coverage_ops[i]
-        new_duplicate = apply_with_fallback(new_duplicate, op, fallback_ops)
-        corrupted_duplicates.append(new_duplicate)
+        # Decide how many errors to apply for this specific duplicate.
+        num_errors_to_apply = random.randint(MIN_ERRORS_PER_RECORD, MAX_ERRORS_PER_RECORD)
+        
+        # Select a sample of unique error functions to apply.
+        # Ensure we don't try to select more functions than are available.
+        k = min(num_errors_to_apply, len(error_operations))
+        operations_to_apply = random.sample(error_operations, k)
 
-    # --- Random phase: use random ops for remaining duplicates ---
-    for j in range(coverage_count, len(records_to_duplicate)):
-        original_record = records_to_duplicate[j]
-        idx = last_record_id + 1 + j
-        new_duplicate = original_record.copy()
-        new_duplicate['record_id'] = idx
-        new_duplicate['original_record_id'] = original_record['record_id']
+        # Apply each selected operation sequentially.
+        for op in operations_to_apply:
+            new_duplicate = op(new_duplicate)
 
-        op = random.choice(error_operations)
-        new_duplicate = apply_with_fallback(new_duplicate, op, fallback_ops)
+        # Safety check: ensure the record has actually changed.
+        # This handles the rare case where all selected operations were no-ops.
+        if _snapshot(new_duplicate) == _snapshot(original_record):
+            # If no changes were made, force a simple, reliable error.
+            fallback_op = random.choice([
+                lambda r: introduce_typo(r, "address"),
+                lambda r: introduce_typo(r, "last_name"),
+            ])
+            new_duplicate = fallback_op(new_duplicate)
+
         corrupted_duplicates.append(new_duplicate)
 
     # Add original_record_id='' to originals
