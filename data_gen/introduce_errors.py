@@ -8,8 +8,8 @@ import re
 
 INPUT_FILE = "data_gen/synthetic_patient_records.csv"
 OUTPUT_FILE = "data_gen/synthetic_patient_records_with_duplicates.csv"
-# Procentul de inregistrari din setul original care vor fi duplicate si corupte.
-# 0.3 inseamna ca pentru 100 de inregistrari originale, vom crea 30 de duplicate corupte.
+# Percentage of records from the original set that will be duplicated and corrupted.
+# 0.3 means that for 100 original records, we will create 30 corrupted duplicates.
 DUPLICATION_RATE = 0.3
 CORRUPTIBLE_FIELDS = [
     "first_name", "last_name", "gender", "date_of_birth", "address",
@@ -66,7 +66,7 @@ COMMON_FIRST_NAMES = [
 ]
 
 NICKNAMES = {
-     "William": ["Bill", "Will", "Billy"],
+    "William": ["Bill", "Will", "Billy"],
     "Robert": ["Rob", "Bob", "Robby", "Bobby"],
     "James": ["Jim", "Jimmy"],
     "John": ["Jack", "Johnny"],
@@ -217,30 +217,30 @@ def introduce_address_component_omission_error(record: dict) -> dict:
     return record
 
 def read_data(filepath: str) -> list[dict]:
-    """Citeste datele dintr-un fisier CSV si le returneaza ca lista de dictionare."""
+    """Reads data from a CSV file and returns it as a list of dictionaries."""
     try:
         with open(filepath, "r", newline="", encoding="utf-8") as f:
             return list(csv.DictReader(f))
     except FileNotFoundError:
-        print(f"Eroare: Fisierul '{filepath}' nu a fost gasit.")
-        print("Ruleaza mai intai scriptul original pentru a genera datele.")
+        print(f"Error: File '{filepath}' not found.")
+        print("Run the original script first to generate the data.")
         exit()
 
 def write_data(filepath: str, data: list[dict], fieldnames: list[str]):
-    """Scrie o lista de dictionare intr-un fisier CSV, folosind o lista definita de coloane."""
+    """Writes a list of dictionaries to a CSV file, using a defined list of columns."""
     if not data:
-        print("Nu sunt date de scris.")
+        print("No data to write.")
         return
 
     with open(filepath, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(data)
-    print(f"Fisier creat cu succes: {filepath} ({len(data)} inregistrari)")
+    print(f"File successfully created: {filepath} ({len(data)} records)")
 
 
 def build_phonetic_map(data: list[dict]) -> dict:
-    """Creeaza un dictionar pentru cautare fonetica eficienta."""
+    """Creates a dictionary for efficient phonetic search."""
     phonetic_map = defaultdict(list)
     for record in data:
         name = record.get("first_name", "")
@@ -250,6 +250,7 @@ def build_phonetic_map(data: list[dict]) -> dict:
     return phonetic_map
 
 def introduce_typo(record: dict, field: str) -> dict:
+    """Introduces a random typo in the specified field."""
     value = record[field]
     if len(value) < 2: return record
     pos = random.randint(0, len(value) - 1)
@@ -263,15 +264,18 @@ def introduce_typo(record: dict, field: str) -> dict:
     return record
 
 def swap_names(record: dict) -> dict:
+    """Swaps the first and last names in the record."""
     record["first_name"], record["last_name"] = record["last_name"], record["first_name"]
     return record
 
 def introduce_blank_value(record: dict) -> dict:
+    """Randomly blanks out one of the corruptible fields."""
     field_to_blank = random.choice(CORRUPTIBLE_FIELDS)
     record[field_to_blank] = ""
     return record
 
 def change_date_of_birth(record: dict) -> dict:
+    """Randomly changes the date of birth in the record."""
     try:
         dob = datetime.strptime(record["date_of_birth"], "%Y-%m-%d")
         if random.random() < 0.5:
@@ -285,6 +289,7 @@ def change_date_of_birth(record: dict) -> dict:
     return record
 
 def introduce_phonetic_error(record: dict, phonetic_map: dict) -> dict:
+    """Replaces the first name with a phonetically similar name."""
     original_name = record["first_name"]
     metaphone_code = jellyfish.metaphone(original_name)
     similar_names = [n for n in phonetic_map.get(metaphone_code, []) if n != original_name]
@@ -292,17 +297,20 @@ def introduce_phonetic_error(record: dict, phonetic_map: dict) -> dict:
     return record
 
 def introduce_nickname(record: dict) -> dict:
+    """Replaces the first name with a known nickname if available."""
     first_name = record["first_name"]
     if first_name in NICKNAMES: record["first_name"] = random.choice(NICKNAMES[first_name])
     return record
 
 def add_middle_initial(record: dict) -> dict:
+    """Adds a random middle initial to the first name if not already present."""
     if " " not in record["first_name"]:
         middle_initial = random.choice("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
         record["first_name"] = f"{record['first_name']} {middle_initial}"
     return record
 
 def get_spelling_variants(name: str, max_edit: int = 2):
+    """Returns spelling variants of a name within a given edit distance."""
     if not name:
         return []
     code = jellyfish.metaphone(name)
@@ -356,7 +364,7 @@ def apply_with_fallback(record: dict, primary_op, fallback_ops: list) -> dict:
     return r  # if nothing changes, return as-is (rare)
 
 def main():
-    """Orchestreaza procesul de citire, duplicare, corupere si scriere a datelor."""
+    """Orchestrates the process of reading, duplicating, corrupting, and writing data."""
     clean_data = read_data(INPUT_FILE)
     if not clean_data:
         return
@@ -433,4 +441,3 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
