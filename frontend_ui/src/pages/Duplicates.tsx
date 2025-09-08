@@ -143,8 +143,7 @@ export default function DuplicatesPage() {
               startIcon={loading ? <CircularProgress color="inherit" size={16} /> : null}>
               {loading ? '…' : 'Find duplicates'}
             </Button>
-            <Button color="secondary" variant="outlined" onClick={exportCSV}  disabled={dupes.length === 0 || (role !== 'auditor' && role !== 'admin')} 
-            >
+            <Button color="secondary" variant="outlined" onClick={exportCSV}  disabled={dupes.length === 0 || (role !== 'admin' && role !== 'receptionist')}>
               Export CSV
             </Button>
             <Button color="primary" variant="contained" disabled={selectedIds.length === 0}
