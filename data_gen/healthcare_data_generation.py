@@ -8,7 +8,7 @@ import re
 # --- Configure locales and their weights ---
 # Each tuple contains a locale and its weight (probability of being chosen)
 locales = [
-    ("en_US", 1),  # 100% Americans (adjust weights as needed)
+    ("RO_RO", 1),  # 100% Americans (adjust weights as needed)
     #("en_GB", 0.10),  # 10% British
     #("es_ES", 0.06),  # 6% Spanish
     #("fr_FR", 0.06),  # 6% French
@@ -99,7 +99,7 @@ def one_patient(record_id: int):
 
     # Map locale to country code
     locale_country_map = {
-        "en_US": "US",
+        "ro_RO": "RO",
         "en_GB": "GB",
         "es_ES": "ES",
         "fr_FR": "FR",
@@ -108,7 +108,7 @@ def one_patient(record_id: int):
         "it_IT": "IT"
     }
     fk_locale = fk.locales[0] if hasattr(fk, "locales") else fk.locales
-    country_code = locale_country_map.get(fk_locale, "US")
+    country_code = locale_country_map.get(fk_locale, "RO")
 
     # Get a location tuple: (city, country, latitude, longitude)
     loc = fk.local_latlng(country_code=country_code)

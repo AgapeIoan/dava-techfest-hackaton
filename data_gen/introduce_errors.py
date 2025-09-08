@@ -439,5 +439,5 @@ def main():
     ]
     write_data(OUTPUT_FILE, final_data, final_fieldnames)
 
-
 if __name__ == "__main__":
+    main()
