@@ -6,6 +6,7 @@ from ..db import get_session
 from ..models import Patient, Link, ClusterAssignment
 from ..schemas import PatientOut, DuplicateCandidate, PatientWithDuplicates
 from ..utils import resolve_run_id
+from ..services.auth_service import get_current_user
 
 router = APIRouter(prefix="/patients", tags=["patients"])
 
@@ -26,7 +27,7 @@ def _patient_to_out(p: Patient, cluster_id: Optional[str]) -> PatientOut:
         cluster_id=cluster_id
     )
 
-@router.get("/search", response_model=List[PatientWithDuplicates])
+@router.get("/search", response_model=List[PatientWithDuplicates], dependencies=[Depends(get_current_user)])
 def search_by_name(
     name: str = Query(..., description="Numele căutat (parțial sau complet; ex: 'Ion Pop')"),
     run_id: Optional[int] = Query(None, description="If omitted, latest run will be used"),
@@ -168,7 +169,7 @@ def search_by_name(
 
     return results
 
-@router.get("/matches", response_model=List[PatientWithDuplicates], tags=["patients"])
+@router.get("/matches", response_model=List[PatientWithDuplicates], tags=["patients"], dependencies=[Depends(get_current_user)])
 def list_all_matches_grouped(
     run_id: Optional[int] = Query(None, description="If omitted, latest run will be used"),
     group_by_cluster: bool = Query(True, description="If true, one entry per cluster; else per record"),
@@ -293,7 +294,7 @@ def list_all_matches_grouped(
 
     return results
 
-@router.get("/{record_id}", response_model=PatientWithDuplicates)
+@router.get("/{record_id}", response_model=PatientWithDuplicates, dependencies=[Depends(get_current_user)])
 def get_patient_with_dups(
     record_id: str,
     run_id: Optional[int] = Query(None, description="If omitted, latest run will be used"),

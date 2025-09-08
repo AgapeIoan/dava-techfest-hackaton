@@ -5,6 +5,7 @@ from sqlmodel import Session, select
 from ..db import get_session
 from ..models import Patient
 from ..schemas import IngestResponse
+from ..services.auth_service import require_role
 
 router = APIRouter(prefix="/ingest", tags=["ingest"])
 
@@ -13,7 +14,7 @@ EXPECTED = [
     "address","city","county","ssn","phone_number","email"
 ]
 
-@router.post("/patients-csv", response_model=IngestResponse)
+@router.post("/patients-csv", response_model=IngestResponse, dependencies=[Depends(require_role("admin"))])
 def ingest_patients_csv(
     file: UploadFile = File(...),
     session: Session = Depends(get_session),

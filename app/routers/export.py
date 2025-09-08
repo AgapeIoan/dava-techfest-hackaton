@@ -6,10 +6,11 @@ from sqlmodel import Session, select
 from ..utils import resolve_run_id
 from ..db import get_session
 from ..models import Link
+from ..services.auth_service import get_current_user
 
 router = APIRouter(prefix="/export", tags=["export"])
 
-@router.get("/links.csv")
+@router.get("/links.csv",  dependencies=[Depends(get_current_user)])
 def export_links_csv(
     run_id: int | None = Query(None, description="If omitted, latest run will be used"),
     session: Session = Depends(get_session),

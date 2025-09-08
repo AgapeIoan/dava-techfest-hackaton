@@ -5,11 +5,12 @@ from ..db import get_session
 from ..models import DedupeRun, Link, ClusterAssignment
 from ..schemas import RunRequest
 from ..utils import df_from_patients_table, links_df_to_models, clusters_to_assignments
-from ..services.dedupe import run_pipeline
+from ..services.dedupe import run_pipeline 
+from ..services.auth_service import require_role
 
 router = APIRouter(prefix="/dedupe", tags=["dedupe"])
 
-@router.post("/run")
+@router.post("/run", dependencies=[Depends(require_role("admin"))])
 def run_dedupe(req: RunRequest, session: Session = Depends(get_session)):
     # 1) create run
     run = DedupeRun(model_version=req.model_version, strategy=req.strategy)

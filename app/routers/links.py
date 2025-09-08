@@ -5,6 +5,7 @@ from sqlmodel import Session, select
 from ..db import get_session
 from ..models import Link, ClusterAssignment
 from ..schemas import LinkOut, ClustersResponse, ClusterItem
+from ..services.auth_service import get_current_user
 
 router = APIRouter(prefix="/links", tags=["links"])
 
@@ -27,7 +28,7 @@ def list_links(
     return [LinkOut.model_validate(r.__dict__) for r in rows]
 
 
-@router.get("/clusters", response_model=ClustersResponse)
+@router.get("/clusters", response_model=ClustersResponse, dependencies=[Depends(get_current_user)])
 def get_clusters(
     run_id: Optional[int] = Query(None, description="If omitted, latest run will be used"),
     session: Session = Depends(get_session)
