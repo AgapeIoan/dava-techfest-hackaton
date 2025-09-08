@@ -32,6 +32,8 @@ import HistoryIcon from '@mui/icons-material/History';
 import SecurityIcon from '@mui/icons-material/Security';
 import PersonIcon from '@mui/icons-material/Person'; // ⬅️ icon persoană
 import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown'; // ⬅️ pentru meniu
+import Visibility from '@mui/icons-material/Visibility';
+import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import { Link, useLocation } from 'react-router-dom';
 import useDupeStore from '../store/dupeStore';
 
@@ -74,6 +76,7 @@ export default function Layout({ children }: PropsWithChildren) {
   // login state
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh' }}>
@@ -126,11 +129,23 @@ export default function Layout({ children }: PropsWithChildren) {
                   />
                   <TextField
                     label="Password"
-                    type="password"
+                    type={showPassword ? 'text' : 'password'}
                     value={password}
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
                     fullWidth
                     size="small"
+                    InputProps={{
+                      endAdornment: (
+                        <IconButton
+                          aria-label={showPassword ? 'Hide password' : 'Show password'}
+                          onClick={() => setShowPassword((v) => !v)}
+                          edge="end"
+                          size="small"
+                        >
+                          {showPassword ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                        </IconButton>
+                      ),
+                    }}
                   />
                   <Button
                     variant="contained"
