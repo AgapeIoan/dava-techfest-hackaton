@@ -173,3 +173,5 @@ http://localhost:8000
         "email": "mrobinson@protonmail.com"
 }
 ```
+- Response: Similar to 5. Search patients by name
+

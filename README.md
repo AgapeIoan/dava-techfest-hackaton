@@ -1,6 +1,6 @@
 # dava-techfest-hackaton
-Synthetic Healthcare Dataset Generator
 
+Synthetic Healthcare Dataset Generator
 
 ## Synthetic Healthcare Data Generator
 
@@ -27,6 +27,41 @@ Synthetic Healthcare Dataset Generator
 - Generate **clusters of duplicates** (3–5 per patient).
 - Add per-country rules for SSNs, postcodes, and phone formats.
 - Enrich with clinical data if needed for healthcare-specific tasks.
+
+---
+
+## 🧪 Data Corruption & Duplicate Simulation (`introduce_errors.py`)
+
+The `introduce_errors.py` script takes the synthetic patient CSV and generates realistic duplicates and corrupted records for deduplication benchmarking.
+
+**Features:**
+- Duplicates a configurable percentage of records (default: 30%).
+- Applies random errors to each duplicate, including:
+  - Typos in names, addresses, phone numbers
+  - Swapping first and last names
+  - Blank fields
+  - Date of birth changes
+  - Phonetic substitutions and nicknames
+  - Address abbreviation and omission errors
+  - Spelling variants and middle initials
+- Ensures each duplicate is actually changed (no accidental perfect copies).
+- Outputs a new CSV with both original and corrupted records, including a link to the original record.
+
+**How to use:**
+1. Generate the base dataset:
+   ```
+   python data_gen/healthcare_data_generation.py
+   ```
+2. Create duplicates and corrupted records:
+   ```
+   python data_gen/introduce_errors.py
+   ```
+   The output will be `synthetic_patient_records_with_duplicates.csv`.
+
+**Use case:**  
+This enables robust testing of entity resolution, record linkage, and deduplication algorithms in healthcare and other domains.
+
+---
 
 ### 🎯 Justification for USA Dataset Selection
 
