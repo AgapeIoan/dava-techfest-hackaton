@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import {
   Box,
   Typography,
@@ -13,9 +13,10 @@ import {
   Chip,
   Tooltip,
   Divider,
+  Button,
 } from '@mui/material';
 import { ExpandMore as ExpandMoreIcon, Block as NotDuplicateIcon } from '@mui/icons-material';
-import { DuplicateGroupData } from '../pages/Admin'; // This import is still correct
+import type { DuplicateGroupData } from '../pages/Admin';
 
 // Renamed props for clarity
 interface DuplicateGroupCardProps {
@@ -23,6 +24,7 @@ interface DuplicateGroupCardProps {
   isSelected: boolean;
   onSelectionChange: (mainProfileId: number) => void;
   onDismiss: (mainProfileId: number) => void;
+  onManualMerge?: (group: DuplicateGroupData) => void;
 }
 
 const getConfidenceChipColor = (confidence: 'high' | 'medium' | 'low') => {
@@ -42,6 +44,7 @@ export default function DuplicateGroupCard({
   isSelected,
   onSelectionChange,
   onDismiss,
+  onManualMerge,
 }: DuplicateGroupCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const { mainProfile, duplicates, confidence } = groupData;
@@ -59,11 +62,11 @@ export default function DuplicateGroupCard({
         <Checkbox
           checked={isSelected}
           onChange={() => onSelectionChange(mainProfile.id)}
-          inputProps={{ 'aria-label': `Select group for ${mainProfile.fullName}` }}
+          inputProps={{ 'aria-label': `Select group for ${mainProfile.firstName || mainProfile.lastName}` }}
         />
         <Box sx={{ flexGrow: 1, ml: 1 }}>
           <Typography variant="body1" fontWeight="bold">
-            {mainProfile.fullName}
+            {mainProfile.firstName} {mainProfile.lastName}
           </Typography>
           <Typography variant="body2" color="text.secondary">
             ID: {mainProfile.id} | Email: {mainProfile.email}
@@ -76,6 +79,16 @@ export default function DuplicateGroupCard({
             size="small"
             variant="outlined"
           />
+          {onManualMerge && (
+            <Button
+              variant="outlined"
+              size="small"
+              sx={{ ml: 1, textTransform: 'none' }}
+              onClick={() => onManualMerge(groupData)}
+            >
+              Manual Merge
+            </Button>
+          )}
           <Tooltip title="Mark as not a duplicate and remove from list">
             <IconButton onClick={() => onDismiss(mainProfile.id)} size="small">
               <NotDuplicateIcon />
@@ -106,7 +119,7 @@ export default function DuplicateGroupCard({
             {duplicates.map((duplicate) => (
               <ListItem key={duplicate.id} divider>
                 <ListItemText
-                  primary={duplicate.fullName}
+                  primary={`${duplicate.firstName} ${duplicate.lastName}`}
                   secondary={`DOB: ${duplicate.dateOfBirth} | Phone: ${duplicate.phone}`}
                 />
                 <Stack direction="row" spacing={1}>

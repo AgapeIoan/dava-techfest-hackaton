@@ -15,18 +15,25 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  Grid,
 } from '@mui/material';
+import Grid from '@mui/material/Grid';
 import DuplicateGroup from '../components/DuplicateGroupCard';
+import ManualMergeDialog from '../components/ManualMergeDialog';
 import { UploadFile as UploadFileIcon, Search as SearchIcon } from '@mui/icons-material';
 
 // --- TYPE DEFINITIONS ---
 export interface Profile {
   id: number;
-  fullName: string;
+  firstName: string;
+  lastName: string;
   dateOfBirth: string;
   phone: string;
   email: string;
+  ssn: string;
+  address: string;
+  city: string;
+  county: string;
+  gender: string;
 }
 
 export interface DuplicateProfile extends Profile {
@@ -42,35 +49,193 @@ export interface DuplicateGroupData {
 // --- MOCK DATA ---
 const MOCK_DUPLICATE_DATA: DuplicateGroupData[] = [
   {
-    mainProfile: { id: 1, fullName: 'Johnathan Doe', dateOfBirth: '1990-05-15', phone: '555-0101', email: 'j.doe@example.com' },
+    mainProfile: {
+      id: 1,
+      firstName: 'Johnathan',
+      lastName: 'Doe',
+      dateOfBirth: '1990-05-15',
+      phone: '555-0101',
+      email: 'j.doe@example.com',
+      ssn: '123-45-6789',
+      address: '123 Main St',
+      city: 'Springfield',
+      county: 'Greene',
+      gender: 'Male',
+    },
     duplicates: [
-      { id: 101, fullName: 'Johnny Doe', dateOfBirth: '1990-05-15', phone: '555-0199', email: 'j.doe@example.com', matchReasons: ['Similar Name', 'Same Email', 'Same D.O.B.'] },
-      { id: 102, fullName: 'John D.', dateOfBirth: '1989-01-20', phone: '555-0101', email: 'johndoe@work.com', matchReasons: ['Similar Name', 'Same Phone'] },
+      {
+        id: 101,
+        firstName: 'Johnny',
+        lastName: 'Doe',
+        dateOfBirth: '1990-05-15',
+        phone: '555-0199',
+        email: 'j.doe@example.com',
+        ssn: '123-45-6789',
+        address: '123 Main St',
+        city: 'Springfield',
+        county: 'Greene',
+        gender: 'M',
+        matchReasons: ['Similar Name', 'Same Email', 'Same D.O.B.'],
+      },
+      {
+        id: 102,
+        firstName: 'John',
+        lastName: 'D.',
+        dateOfBirth: '1989-01-20',
+        phone: '555-0101',
+        email: 'johndoe@work.com',
+        ssn: '123-45-6789',
+        address: '124 Main St',
+        city: 'Springfield',
+        county: 'Greene',
+        gender: 'Man',
+        matchReasons: ['Similar Name', 'Same Phone'],
+      },
     ],
     confidence: 'high',
   },
   {
-    mainProfile: { id: 2, fullName: 'Jane Samantha Smith', dateOfBirth: '1985-11-22', phone: '555-0202', email: 'jane.smith@mail.com' },
-    duplicates: [{ id: 201, fullName: 'Jane S.', dateOfBirth: '1985-11-22', phone: '555-0233', email: 'jane.smith@mail.com', matchReasons: ['Similar Name', 'Same Email', 'Same D.O.B.'] }],
+    mainProfile: {
+      id: 2,
+      firstName: 'Jane',
+      lastName: 'Samantha Smith',
+      dateOfBirth: '1985-11-22',
+      phone: '555-0202',
+      email: 'jane.smith@mail.com',
+      ssn: '987-65-4321',
+      address: '456 Oak Ave',
+      city: 'Riverside',
+      county: 'Orange',
+      gender: 'Female',
+    },
+    duplicates: [
+      {
+        id: 201,
+        firstName: 'Jane',
+        lastName: 'S.',
+        dateOfBirth: '1985-11-22',
+        phone: '555-0233',
+        email: 'jane.smith@mail.com',
+        ssn: '987-65-4321',
+        address: '456 Oak Ave',
+        city: 'Riverside',
+        county: 'Orange',
+        gender: 'Female',
+        matchReasons: ['Similar Name', 'Same Email', 'Same D.O.B.'],
+      },
+    ],
     confidence: 'high',
   },
   {
-    mainProfile: { id: 3, fullName: 'Peter Jones', dateOfBirth: '1992-02-10', phone: '555-0303', email: 'p.jones@web.com' },
-    duplicates: [{ id: 301, fullName: 'Pete Jones', dateOfBirth: '1993-02-10', phone: '555-0304', email: 'peter.jones@web.com', matchReasons: ['Similar Name'] }],
+    mainProfile: {
+      id: 3,
+      firstName: 'Peter',
+      lastName: 'Jones',
+      dateOfBirth: '1992-02-10',
+      phone: '555-0303',
+      email: 'p.jones@web.com',
+      ssn: '111-22-3333',
+      address: '789 Pine Rd',
+      city: 'Hill Valley',
+      county: 'Marty',
+      gender: 'Male',
+    },
+    duplicates: [
+      {
+        id: 301,
+        firstName: 'Pete',
+        lastName: 'Jones',
+        dateOfBirth: '1993-02-10',
+        phone: '555-0304',
+        email: 'peter.jones@web.com',
+        ssn: '111-22-3333',
+        address: '789 Pine Rd',
+        city: 'Hill Valley',
+        county: 'Marty',
+        gender: 'Male',
+        matchReasons: ['Similar Name'],
+      },
+    ],
     confidence: 'medium',
   },
   {
-    mainProfile: { id: 4, fullName: 'Samuel Wilson', dateOfBirth: '1978-09-30', phone: '555-0404', email: 'sam.w@example.com' },
-    duplicates: [{ id: 401, fullName: 'Sam Wilson', dateOfBirth: '1978-09-30', phone: '555-0405', email: 'sam.wilson@example.net', matchReasons: ['Similar Name', 'Same D.O.B.'] }],
+    mainProfile: {
+      id: 4,
+      firstName: 'Samuel',
+      lastName: 'Wilson',
+      dateOfBirth: '1978-09-30',
+      phone: '555-0404',
+      email: 'sam.w@example.com',
+      ssn: '222-33-4444',
+      address: '321 Maple St',
+      city: 'Metropolis',
+      county: 'Clark',
+      gender: 'Male',
+    },
+    duplicates: [
+      {
+        id: 401,
+        firstName: 'Sam',
+        lastName: 'Wilson',
+        dateOfBirth: '1978-09-30',
+        phone: '555-0405',
+        email: 'sam.wilson@example.net',
+        ssn: '222-33-4444',
+        address: '321 Maple St',
+        city: 'Metropolis',
+        county: 'Clark',
+        gender: 'Male',
+        matchReasons: ['Similar Name', 'Same D.O.B.'],
+      },
+    ],
     confidence: 'medium',
   },
   {
-    mainProfile: { id: 5, fullName: 'Maria Garcia', dateOfBirth: '2000-01-01', phone: '555-0505', email: 'maria.g@email.com' },
-    duplicates: [{ id: 501, fullName: 'Mary Garcia', dateOfBirth: '2000-01-02', phone: '555-0506', email: 'm.garcia@email.com', matchReasons: ['Similar Name'] }],
+    mainProfile: {
+      id: 5,
+      firstName: 'Maria',
+      lastName: 'Garcia',
+      dateOfBirth: '2000-01-01',
+      phone: '555-0505',
+      email: 'maria.g@email.com',
+      ssn: '333-44-5555',
+      address: '654 Elm St',
+      city: 'Sunnydale',
+      county: 'Buffy',
+      gender: 'Female',
+    },
+    duplicates: [
+      {
+        id: 501,
+        firstName: 'Mary',
+        lastName: 'Garcia',
+        dateOfBirth: '2000-01-02',
+        phone: '555-0506',
+        email: 'm.garcia@email.com',
+        ssn: '333-44-5555',
+        address: '654 Elm St',
+        city: 'Sunnydale',
+        county: 'Buffy',
+        gender: 'Female',
+        matchReasons: ['Similar Name'],
+      },
+    ],
     confidence: 'low',
   },
   {
-    mainProfile: { id: 6, fullName: 'Bruce Wayne', dateOfBirth: '1972-04-17', phone: '555-0606', email: 'bruce@wayne.com' },
+    mainProfile: {
+      id: 6,
+      firstName: 'Bruce',
+      lastName: 'Wayne',
+      dateOfBirth: '1972-04-17',
+      phone: '555-0606',
+      email: 'bruce@wayne.com',
+      ssn: '444-55-6666',
+      address: '1007 Mountain Dr',
+      city: 'Gotham',
+      county: 'Wayne',
+      gender: 'Male',
+    },
     duplicates: [],
     confidence: 'low',
   },
@@ -87,6 +252,10 @@ export default function AdminPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState('');
   const [confidenceFilter, setConfidenceFilter] = useState('all');
+  // Manual merge modal state
+  const [manualMergeGroup, setManualMergeGroup] = useState<DuplicateGroupData | null>(null);
+  const [mergeSelections, setMergeSelections] = useState<Record<string, string>>({});
+
 
   useEffect(() => {
     let result = allGroups;
@@ -96,9 +265,10 @@ export default function AdminPage() {
     if (searchQuery.trim() !== '') {
       const lowercasedQuery = searchQuery.toLowerCase();
       result = result.filter(group =>
-        group.mainProfile.fullName.toLowerCase().includes(lowercasedQuery) ||
+        group.mainProfile.firstName.toLowerCase().includes(lowercasedQuery) ||
+        group.mainProfile.lastName.toLowerCase().includes(lowercasedQuery) ||
         group.mainProfile.email.toLowerCase().includes(lowercasedQuery) ||
-        group.duplicates.some(dup => dup.fullName.toLowerCase().includes(lowercasedQuery) || dup.email.toLowerCase().includes(lowercasedQuery))
+        group.duplicates.some(dup => dup.firstName.toLowerCase().includes(lowercasedQuery) || dup.lastName.toLowerCase().includes(lowercasedQuery) || dup.email.toLowerCase().includes(lowercasedQuery))
       );
     }
     setFilteredGroups(result);
@@ -158,8 +328,39 @@ export default function AdminPage() {
   const selectedOnPageCount = idsOnCurrentPage.filter(id => selectedGroups.has(id)).length;
   const areAllOnPageSelected = idsOnCurrentPage.length > 0 && selectedOnPageCount === idsOnCurrentPage.length;
 
+  // --- Manual Merge Modal Logic ---
+  const handleOpenManualMerge = (group: DuplicateGroupData) => {
+    // Collect all fields and set default selections to mainProfile values
+    const allFields = [
+      'firstName', 'lastName', 'dateOfBirth', 'phone', 'gender', 'email', 'ssn', 'address', 'city', 'county',
+    ];
+    const selections: Record<string, string> = {};
+    allFields.forEach(field => {
+      selections[field] = (group.mainProfile as any)[field];
+    });
+    setMergeSelections(selections);
+    setManualMergeGroup(group);
+  };
+
+  const handleCloseManualMerge = () => {
+    setManualMergeGroup(null);
+  };
+
+  const handleMergeFieldChange = (field: string, value: string) => {
+    setMergeSelections(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleApproveMerge = () => {
+    // Here you would send mergeSelections to backend or update state
+    // For demo, just close modal and remove group from list
+    if (manualMergeGroup) {
+      setAllGroups(prev => prev.filter(g => g.mainProfile.id !== manualMergeGroup.mainProfile.id));
+      setManualMergeGroup(null);
+    }
+  };
+
   return (
-    <Box> {/* Removed padding here, handled by Layout now */}
+    <Box>
       <Typography variant="h4" gutterBottom>
         Admin Dashboard: Find & Merge Duplicates
       </Typography>
@@ -210,7 +411,14 @@ export default function AdminPage() {
           <Typography variant="h6" sx={{ mb: 2 }}>Found {filteredGroups.length} potential duplicate groups</Typography>
           {paginatedGroups.length > 0 ? (
             paginatedGroups.map((group) => (
-              <DuplicateGroup key={group.mainProfile.id} groupData={group} isSelected={selectedGroups.has(group.mainProfile.id)} onSelectionChange={handleSelectionChange} onDismiss={handleDismissGroup} />
+              <DuplicateGroup
+                key={group.mainProfile.id}
+                groupData={group}
+                isSelected={selectedGroups.has(group.mainProfile.id)}
+                onSelectionChange={handleSelectionChange}
+                onDismiss={handleDismissGroup}
+                onManualMerge={handleOpenManualMerge}
+              />
             ))
           ) : (
             <Typography sx={{ mt: 3, textAlign: 'center' }}>No duplicate profiles match your current filters.</Typography>
@@ -220,6 +428,15 @@ export default function AdminPage() {
       ) : (
          <Typography sx={{ mt: 3, textAlign: 'center', color: 'text.secondary' }}>Import a file or search the database to begin finding duplicates.</Typography>
       )}
+
+      <ManualMergeDialog
+        open={!!manualMergeGroup}
+        group={manualMergeGroup}
+        selections={mergeSelections}
+        onFieldChange={handleMergeFieldChange}
+        onApprove={handleApproveMerge}
+        onClose={handleCloseManualMerge}
+      />
     </Box>
   );
 }
