@@ -11,6 +11,9 @@ import {
   Typography,
   Button,
   TextField,
+  Card,
+  CardContent,
+  Grid,
 } from '@mui/material'
 import { KeyboardArrowDown, KeyboardArrowUp } from '@mui/icons-material'
 import { Patient } from '../store/dupeStore'
@@ -118,17 +121,22 @@ export default function DuplicateGroup({ patient, isReceptionist, onSave }: Dupl
               />
               <TextField
                 name="street"
-                label="Street"
-                value={form.address?.street ?? ''}
-                onChange={handleAddressChange}
-                size="small"
-                sx={{ mb: 1, mr: 1 }}
-              />
-              <TextField
-                name="number"
-                label="Number"
-                value={form.address?.number ?? ''}
-                onChange={handleAddressChange}
+                label="Street & Number"
+                value={
+                  (form.address?.street ?? '') +
+                  (form.address?.number ? ' ' + form.address.number : '')
+                }
+                onChange={e => {
+                  const [street, ...numberArr] = e.target.value.split(' ')
+                  setForm({
+                    ...form,
+                    address: {
+                      ...form.address,
+                      street,
+                      number: numberArr.join(' '),
+                    },
+                  })
+                }}
                 size="small"
                 sx={{ mb: 1, mr: 1 }}
               />
@@ -159,8 +167,9 @@ export default function DuplicateGroup({ patient, isReceptionist, onSave }: Dupl
               <div>Date of Birth: {patient.dob}</div>
               <div>Phone: {patient.phone}</div>
               <div>Email: {patient.email}</div>
-              <div>Street: {patient.address?.street}</div>
-              <div>Number: {patient.address?.number}</div>
+              <div>
+                Address: {(patient.address?.street ?? '') + (patient.address?.number ? ' ' + patient.address.number : '')}
+              </div>
               <div>City: {patient.address?.city}</div>
               <div>County: {patient.address?.county}</div>
               {isReceptionist && (
@@ -182,7 +191,7 @@ export default function DuplicateGroup({ patient, isReceptionist, onSave }: Dupl
               <ListItem key={dup.id}>
                 <ListItemText
                   primary={dup.name}
-                  secondary={`Email: ${dup.email} | Last Login: ${dup.address}`}
+                  secondary={`Email: ${dup.email} | Address: ${(dup.address?.street ?? '') + (dup.address?.number ? ' ' + dup.address.number : '')} | Last Login: ${dup.lastLogin}`}
                 />
               </ListItem>
             ))
