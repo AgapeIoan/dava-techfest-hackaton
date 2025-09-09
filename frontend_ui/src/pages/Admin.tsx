@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   Box,
@@ -15,12 +14,14 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  Grid,
+  Alert
 } from '@mui/material';
-import Grid from '@mui/material/Grid';
+// import Grid from '@mui/material/Grid';
 import DuplicateGroup from '../components/DuplicateGroupCard';
+import { UploadFile as UploadFileIcon, Search as SearchIcon, PlayCircleOutline as RunIcon } from '@mui/icons-material';
+import useAdminStore from '../store/adminStore';
 import ManualMergeDialog from '../components/ManualMergeDialog';
-import { UploadFile as UploadFileIcon, Search as SearchIcon } from '@mui/icons-material';
-
 // --- TYPE DEFINITIONS ---
 export interface Profile {
   id: number;
@@ -256,6 +257,33 @@ export default function AdminPage() {
   const [manualMergeGroup, setManualMergeGroup] = useState<DuplicateGroupData | null>(null);
   const [mergeSelections, setMergeSelections] = useState<Record<string, string>>({});
 
+  const [selectedRunId, setSelectedRunId] = useState<number | null>(null);
+
+  // Get state from the admin store
+  const { runHistory, startDetectionJob } = useAdminStore();
+  const latestRun = runHistory.find(r => r.status !== 'idle'); // Find the most recent run
+  const isJobRunning = runHistory.some(run => run.status === 'running');
+
+  // Set the selected run to the latest completed one when the component loads
+  useEffect(() => {
+    const latestCompletedRun = runHistory.find(r => r.status === 'completed');
+    if (latestCompletedRun && !selectedRunId) {
+      setSelectedRunId(latestCompletedRun.id);
+    }
+  }, [runHistory, selectedRunId]);
+
+  const handleLoadResults = () => {
+    if (!selectedRunId) {
+      alert("Please select a detection run to view.");
+      return;
+    }
+    setIsLoading(true);
+    setTimeout(() => {
+      setAllGroups(MOCK_DUPLICATE_DATA);
+      setSearchInitiated(true);
+      setIsLoading(false);
+    }, 1000);
+  };
 
   useEffect(() => {
     let result = allGroups;
@@ -328,6 +356,25 @@ export default function AdminPage() {
   const selectedOnPageCount = idsOnCurrentPage.filter(id => selectedGroups.has(id)).length;
   const areAllOnPageSelected = idsOnCurrentPage.length > 0 && selectedOnPageCount === idsOnCurrentPage.length;
 
+  // Handler for the third button: search in results
+  const handleSearchInResults = () => {
+    let result = allGroups;
+    if (confidenceFilter !== 'all') {
+      result = result.filter(group => group.confidence === confidenceFilter);
+    }
+    if (searchQuery.trim() !== '') {
+      const lowercasedQuery = searchQuery.toLowerCase();
+      result = result.filter(group =>
+        group.mainProfile.fullName.toLowerCase().includes(lowercasedQuery) ||
+        group.mainProfile.email.toLowerCase().includes(lowercasedQuery) ||
+        group.duplicates.some(dup => dup.fullName.toLowerCase().includes(lowercasedQuery) || dup.email.toLowerCase().includes(lowercasedQuery))
+      );
+    }
+    setFilteredGroups(result);
+    setCurrentPage(1);
+    setSearchInitiated(true);
+  };
+
   // --- Manual Merge Modal Logic ---
   const handleOpenManualMerge = (group: DuplicateGroupData) => {
     // Collect all fields and set default selections to mainProfile values
@@ -362,21 +409,57 @@ export default function AdminPage() {
   return (
     <Box>
       <Typography variant="h4" gutterBottom>
-        Admin Dashboard: Find & Merge Duplicates
+        Find & Merge Duplicates
       </Typography>
 
-      <Paper sx={{ padding: 2, marginBottom: 3 }}>
-        <Typography variant="h6" sx={{ mb: 2 }}>Start a New Search</Typography>
+      {/* --- Section 1: Start a New Search --- */}
+      <Paper sx={{ p: 2, mb: 3 }}>
+        <Typography variant="h6" sx={{ mb: 2 }}>Start a New Run</Typography>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-          <Button variant="outlined" startIcon={<UploadFileIcon />} onClick={() => alert('File import logic goes here!')}>
-            Import CSV
-          </Button>
-          <Button variant="contained" startIcon={<SearchIcon />} onClick={handleFindDuplicates} disabled={isLoading}>
-            Find Duplicates in Database
+          <Button variant="outlined" startIcon={<UploadFileIcon />} onClick={() => alert('CSV imported! You can now run the detection algorithm.')}>Import CSV</Button>
+          <Button
+            variant="contained"
+            startIcon={<RunIcon />}
+            onClick={startDetectionJob}
+            disabled={isJobRunning}
+            color="secondary"
+          >
+            Find Duplicates
           </Button>
         </Stack>
       </Paper>
 
+      {/* --- Section 2: Review Duplicates --- */}
+      <Paper sx={{ padding: 2, marginBottom: 3 }}>
+        <Typography variant="h6" sx={{ mb: 2 }}>Review Duplicates</Typography>
+
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems="center">
+          <FormControl fullWidth size="small">
+            <InputLabel>Detection Run</InputLabel>
+            <Select
+              value={selectedRunId}
+              label="Detection Run"
+              onChange={(e) => setSelectedRunId(e.target.value as number)}
+            >
+              {runHistory
+                .filter(r => r.status === 'completed') // Only show completed runs
+                .map(run => (
+                  <MenuItem key={run.id} value={run.id}>
+                    Run #{run.id} - Completed on {new Date(run.completedAt!).toLocaleDateString()}
+                  </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+
+          <Button variant="contained" onClick={handleLoadResults} disabled={isLoading || !selectedRunId}>
+            Load Results
+          </Button>
+        </Stack>
+      </Paper>
+
+
+
+      {/* --- Section 3: Search/filter within results --- */}
       {isLoading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', padding: 5 }}><CircularProgress /></Box>
       ) : searchInitiated ? (
@@ -399,7 +482,6 @@ export default function AdminPage() {
                 </Grid>
              </Grid>
           </Paper>
-
            <Paper sx={{ padding: 1, pl: 2, mb: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
                 <FormControlLabel control={<Checkbox checked={areAllOnPageSelected} onChange={handleSelectAllOnPage} />} label={`Select all on page (${selectedOnPageCount}/${idsOnCurrentPage.length})`} />
                 <Box sx={{ flexGrow: 1 }} />
@@ -407,7 +489,6 @@ export default function AdminPage() {
                     Auto-Merge Selected ({selectedGroups.size})
                 </Button>
             </Paper>
-
           <Typography variant="h6" sx={{ mb: 2 }}>Found {filteredGroups.length} potential duplicate groups</Typography>
           {paginatedGroups.length > 0 ? (
             paginatedGroups.map((group) => (
@@ -426,7 +507,8 @@ export default function AdminPage() {
           {pageCount > 1 && <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}><Pagination count={pageCount} page={currentPage} onChange={(_, v) => setCurrentPage(v)} color="primary" /></Box>}
         </>
       ) : (
-         <Typography sx={{ mt: 3, textAlign: 'center', color: 'text.secondary' }}>Import a file or search the database to begin finding duplicates.</Typography>
+         <Typography sx={{ mt: 3, textAlign: 'center', color: 'text.secondary' }}>To begin reviewing, select a completed run and click "Load Results". <br /> To generate a new set of duplicates, use the "Find Duplicates" button.</Typography>
+
       )}
 
       <ManualMergeDialog

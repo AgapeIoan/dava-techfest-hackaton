@@ -34,8 +34,11 @@ import PersonIcon from '@mui/icons-material/Person';
 import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
+import SyncIcon from '@mui/icons-material/Sync';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import { Link, useLocation , useNavigate } from 'react-router-dom';
 import useDupeStore from '../store/dupeStore';
+import useAdminStore from '../store/adminStore';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 
 const drawerWidth = 280;
@@ -50,32 +53,41 @@ export default function Layout({ children }: PropsWithChildren) {
   const loc = useLocation();
   const navigate = useNavigate();
   const {
-    loading,
-    selected,
-    threshold,
-    setThreshold,
-    role,
-    setRole,
-    toast,
-    clearToast,
-    undoLastMerge,
-    lastSnapshot,
-    roleSource,
-    isAuthenticated,
-    userName,
-    loginWithEmail,
-    logout,
+      isAuthenticated,
+      userName,
+      role,
+      toast,
+      clearToast,
+      loginWithEmail,
+      logout,
+      selected,
+      loading,
+      threshold,
+      roleSource,
+      lastSnapshot,
+      selectedRunId
   } = useDupeStore();
+  const { runHistory } = useAdminStore();
 
-  const prevIsAuthenticated = usePrevious(isAuthenticated);
-
+  // Redirect after login: admin -> /admin, receptionist -> /duplicates
   useEffect(() => {
-    if (!prevIsAuthenticated && isAuthenticated && role === 'admin') {
-      navigate('/admin', { replace: true });
+  if (isAuthenticated) {
+      if (role === 'admin' && loc.pathname !== '/admin') {
+        navigate('/admin', { replace: true });
+      } else if (role === 'receptionist' && loc.pathname !== '/duplicates') {
+        navigate('/duplicates', { replace: true });
+      }
     }
-  }, [isAuthenticated, prevIsAuthenticated, role, navigate]);
+  }, [isAuthenticated, role, navigate, loc.pathname]);
 
-  const selectedCount = useMemo(() => Object.values(selected).filter(Boolean).length, [selected]);
+  // Redirect unauthenticated users to login page if not already there
+  useEffect(() => {
+    if (!isAuthenticated && loc.pathname !== '/') {
+      navigate('/', { replace: true });
+    }
+  }, [isAuthenticated, loc.pathname, navigate]);
+
+  const selectedCount = useMemo(() => Object.values(selected ?? {}).filter(Boolean).length, [selected]);
 
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const menuOpen = Boolean(anchorEl);
@@ -86,16 +98,7 @@ export default function Layout({ children }: PropsWithChildren) {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
-  // Redirect after login: admin -> /admin, receptionist -> /duplicates
-  useEffect(() => {
- if (isAuthenticated) {
-      if (role === 'admin' && loc.pathname !== '/admin') {
-        navigate('/admin', { replace: true });
-      } else if (role === 'receptionist' && loc.pathname !== '/duplicates') {
-        navigate('/duplicates', { replace: true });
-      }
-    }
-}, [isAuthenticated, role, navigate, loc.pathname]);
+
 
   // --- 1. LOGIN SCREEN ---
   if (!isAuthenticated) {
@@ -133,6 +136,28 @@ export default function Layout({ children }: PropsWithChildren) {
     );
   }
 
+  // --- JOB STATUS INDICATOR ---
+  const JobStatusIndicator = () => {
+    const latestRun = runHistory[0];
+    if (!latestRun || role !== 'admin' || latestRun.status === 'idle') return null;
+    if (latestRun.status === 'running') {
+      return (
+        <Box sx={{ width: 220, display: 'flex', alignItems: 'center', gap: 1, bgcolor: '#fffbe6', borderRadius: 2, px: 2, py: 0.5, boxShadow: 2 }}>
+          <SyncIcon className="spin-icon" sx={{ color: '#d32f2f', fontSize: 22 }} />
+          <Box sx={{ width: '100%', mr: 1 }}>
+            <LinearProgress variant="determinate" value={latestRun.progress} sx={{ height: 8, borderRadius: 4, bgcolor: '#ffe0e0', '& .MuiLinearProgress-bar': { bgcolor: '#d32f2f' } }} />
+          </Box>
+          <Typography variant="caption" sx={{ color: '#d32f2f', fontWeight: 700 }}>{`${latestRun.progress}%`}</Typography>
+        </Box>
+      );
+    }
+    if (latestRun.status === 'completed') {
+      return <Chip icon={<CheckCircleIcon sx={{ color: '#388e3c' }} />} label={`Completed: ${new Date(latestRun.completedAt!).toLocaleTimeString()}`} sx={{ bgcolor: '#e8f5e9', color: '#388e3c', fontWeight: 700, border: '1px solid #388e3c' }} variant="outlined" size="small" />;
+    }
+    return null;
+  };
+
+
   // Common AppBar for all authenticated users
   const AppHeader = (
     <AppBar position="fixed" color="default" elevation={0}>
@@ -141,6 +166,8 @@ export default function Layout({ children }: PropsWithChildren) {
           Duplicate Profile Detector
         </Typography>
         <Box sx={{ flexGrow: 1 }} />
+        {/* Job Status Indicator for admin only */}
+        {role === 'admin' && <JobStatusIndicator />}
         <Button
           variant="contained" color="primary" onClick={openMenu}
           sx={{ borderRadius: 999, display: 'flex', alignItems: 'center', gap: 1 }}
@@ -188,9 +215,9 @@ export default function Layout({ children }: PropsWithChildren) {
   // For everyone else, render the full dashboard with the sidebar.
   // I have removed the background image and set a clean, light gray background color instead.
   return (
-    <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: '#f5f7fa' }}> {/* <-- THIS LINE IS CHANGED */}
+    <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: '#f5f7fa' }}>
       {AppHeader}
-
+        {/*
       <Drawer
         variant="permanent"
         sx={{
@@ -246,12 +273,13 @@ export default function Layout({ children }: PropsWithChildren) {
           {lastSnapshot && <Button variant="outlined" color="inherit" size="small" sx={{ mt: 2 }} onClick={undoLastMerge}>Undo last merge</Button>}
         </Box>
       </Drawer>
+        */}
 
-      <Box component="main" sx={{ flexGrow: 1, p: 3, width: `calc(100% - ${drawerWidth}px)` }}>
+      <Box component="main" sx={{ flexGrow: 1, p: 3  }}>
         <Toolbar />
         {children}
       </Box>
-      
+
       <Snackbar open={!!toast} autoHideDuration={2500} message={toast ?? ''} onClose={clearToast} />
     </Box>
   );

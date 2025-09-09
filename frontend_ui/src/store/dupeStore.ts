@@ -18,7 +18,7 @@ const USE_API = false
 const API_BASE = import.meta.env.VITE_API_BASE ?? '/api'
 
 // ---------- Roluri & persistare ----------
-type Role = 'viewer' | 'receptionist' | 'approver' | 'auditor' | 'admin';
+type Role = 'receptionist' | 'admin';
 const ROLE_KEY = 'dupdetector.role'
 function loadRole(): Role {
   const v = (typeof localStorage !== 'undefined' && localStorage.getItem(ROLE_KEY)) || 'viewer'
@@ -28,7 +28,7 @@ function saveRole(r: Role) { try { localStorage.setItem(ROLE_KEY, r) } catch {} 
 
 // ---------- Auth (mock) ----------
 type Auth = { isAuthenticated: boolean; userName?: string; role?: Role; token?: string; remember?: boolean; email?: string }
-const AUTH_KEY = 'dupdetector.auth' // ⬅️ NEW
+const AUTH_KEY = 'dupdetector.auth'
 
 
 // Receptionist registration helpers
