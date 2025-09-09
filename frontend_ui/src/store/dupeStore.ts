@@ -14,8 +14,8 @@ export type ActivityEvent = {
 }
 
 // ---------- Config API ----------
-const USE_API = false
-const API_BASE = import.meta.env.VITE_API_BASE ?? '/api'
+export const USE_API = true
+export const API_BASE = import.meta.env.VITE_API_BASE ?? '/api'
 
 // ---------- Roluri & persistare ----------
 type Role = 'receptionist' | 'admin';
@@ -64,6 +64,19 @@ function clearAuth() {
     localStorage.removeItem('dupdetector.role')
   } catch {}
   try { sessionStorage.removeItem('token') } catch {}
+}
+
+export function getAuthToken(): string | null {
+  try {
+    const raw = localStorage.getItem(AUTH_KEY);
+    if (raw) {
+      const auth = JSON.parse(raw) as { token?: string };
+      return auth.token || null;
+    }
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 // ---------- MOCK DB ----------
@@ -124,6 +137,7 @@ type State = {
   db: Patient[]; lastSnapshot: Patient[] | null;
   first: string; last: string; loading: boolean; threshold: number;
   role: Role; roleSource: 'local' | 'server'; toast: string | null;
+  toast: string | null;
 
   isAuthenticated: boolean;
   userName?: string;
@@ -135,6 +149,7 @@ type State = {
   setFirst: (v: string) => void; setLast: (v: string) => void;
   setThreshold: (v: number) => void; setRole: (r: Role) => void;
   clearToast: () => void;
+  setToast: (message: string) => void;
   loadRoleFromServer: () => Promise<void>;
 
   loginWithBackend: (email: string, password: string) => void;
@@ -205,6 +220,7 @@ const useDupeStore = create<State>()((set, get) => ({
   setThreshold: (v: number) => set({ threshold: v }),
   setRole: (r: Role) => { saveRole(r); set({ role: r }); },
   clearToast: () => set({ toast: null }),
+  setToast: (message: string) => set({ toast: message }),
 
   async loadRoleFromServer() {
     // lăsăm gol în mock; când USE_API=true poți popula din /api/me

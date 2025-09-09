@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Box,
   Button,
@@ -15,12 +15,15 @@ import {
   Select,
   MenuItem,
   Grid,
-  Alert
+  Alert,
+  Snackbar
 } from '@mui/material';
 
 import DuplicateGroup from '../components/DuplicateGroupCard';
 import { UploadFile as UploadFileIcon, Search as SearchIcon, PlayCircleOutline as RunIcon } from '@mui/icons-material';
 import useAdminStore from '../store/adminStore';
+import useDupeStore, { getAuthToken } from '../store/dupeStore';
+import { API_BASE, USE_API } from '../store/dupeStore';
 import ManualMergeDialog from '../components/ManualMergeDialog';
 import ConfirmMergeDialog from '../components/ConfirmMergeDialog';
 
@@ -263,11 +266,98 @@ export default function AdminPage() {
   const [groupsToConfirm, setGroupsToConfirm] = useState<DuplicateGroupData[]>([]);
 
   const [selectedRunId, setSelectedRunId] = useState<number | null>(null);
+  // File upload state
+  const [isUploading, setIsUploading] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const [toastSeverity, setToastSeverity] = useState<'success' | 'error'>('success');
 
   // Get state from the admin store
   const { runHistory, startDetectionJob } = useAdminStore();
   const latestRun = runHistory.find(r => r.status !== 'idle'); // Find the most recent run
   const isJobRunning = runHistory.some(run => run.status === 'running');
+
+  // --- Upload logic ---
+  useEffect(() => {
+    // This effect triggers the upload when a file is selected
+    if (!selectedFile || !USE_API) return;  // skip in mock mode
+
+    const uploadFile = async () => {
+      setIsUploading(true);
+      const formData = new FormData();
+      // The key 'file' must match what your backend endpoint expects
+      formData.append('file', selectedFile);
+
+      // --- Get the token ---
+      const token = getAuthToken();
+      if (!token) {
+        setToast('Authentication error. Please log in again.');
+        setIsUploading(false);
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API_BASE}/ingest/patients-csv`, {
+          method: 'POST',
+          body: formData,
+          headers: {
+            // Include the token in the Authorization header
+            'Authorization': `Bearer ${token}`
+          },
+        });
+
+        if (!response.ok) {
+            // Add a specific check for 401 Unauthorized
+          if (response.status === 401) {
+             throw new Error('Unauthorized. Your session may have expired.');
+          }
+          // Handle server-side errors (e.g., bad CSV format)
+          let errorMessage = 'File upload failed.';
+          try {
+            const text = await response.text();
+            if (text) {
+              const errorData = JSON.parse(text);
+              errorMessage = errorData.message || errorMessage;
+            }
+          } catch (e) {
+            // If parsing fails, keep default error message
+          }
+          setToast(errorMessage);
+          setToastSeverity('error');
+          throw new Error(errorMessage);
+        }
+
+        setToast('CSV uploaded successfully! You can now run the "Find Duplicates" job.');
+        setToastSeverity('success');
+      } catch (error: any) {
+        console.error("Upload error:", error);
+        // Only set toast/severity if not already set in error block above
+        if (!toast) {
+          setToast(`Error: ${error.message}`);
+          setToastSeverity('error');
+        }
+      } finally {
+        setIsUploading(false);
+        setSelectedFile(null); // Reset after upload
+      }
+    };
+
+    uploadFile();
+  }, [selectedFile, setToast]);
+
+
+  const handleImportClick = () => {
+    // Programmatically click the hidden file input
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setSelectedFile(file);
+    }
+  };
 
   // Set the selected run to the latest completed one when the component loads
   useEffect(() => {
@@ -466,11 +556,27 @@ export default function AdminPage() {
         Find & Merge Duplicates
       </Typography>
 
+      {/* --- The hidden file input --- */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileChange}
+        style={{ display: 'none' }}
+        accept=".csv" // Restrict to CSV files
+      />
+
       {/* --- Section 1: Start a New Search --- */}
       <Paper sx={{ p: 2, mb: 3 }}>
         <Typography variant="h6" sx={{ mb: 2 }}>Start a New Run</Typography>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-          <Button variant="outlined" startIcon={<UploadFileIcon />} onClick={() => alert('CSV imported! You can now run the detection algorithm.')}>Import CSV</Button>
+          <Button
+            variant="outlined"
+            startIcon={isUploading ? <CircularProgress size={20} /> : <UploadFileIcon />}
+            onClick={handleImportClick}
+            disabled={isUploading}
+          >
+            {isUploading ? 'Uploading...' : 'Import CSV'}
+          </Button>
           <Button
             variant="contained"
             startIcon={<RunIcon />}
@@ -579,6 +685,15 @@ export default function AdminPage() {
             onApprove={handleApproveConfirmMerge}
             onCancel={handleCancelConfirmMerge}
         />
+        <Snackbar
+          open={!!toast}
+          autoHideDuration={3000}
+          onClose={() => setToast(null)}
+        >
+          <Alert severity={toastSeverity} onClose={() => setToast(null)} sx={{ width: '100%' }}>
+            {toast}
+          </Alert>
+        </Snackbar>
     </Box>
   );
 }

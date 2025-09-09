@@ -5,8 +5,8 @@ export default defineConfig({
   plugins: [react()],
   server: {
     // API MODE: decomentează proxy-ul când rulezi backendul pe http://localhost:8000
-    // proxy: {
-    //   '/api': { target: 'http://localhost:8000', changeOrigin: true }
-    // }
+    proxy: {
+      '/ingest': { target: 'http://localhost:8000', changeOrigin: true }
+    }
   }
 })
