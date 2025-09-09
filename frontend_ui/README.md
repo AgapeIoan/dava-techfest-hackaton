@@ -1,3 +1,24 @@
+# Duplicate Profile Detector Frontend
+
+## Quickstart
+
+```sh
+npm install
+npm run dev
+```
+
+## Main dependencies
+- React
+- Vite
+- TypeScript
+- Zustand
+- @mui/material, @mui/icons-material, @mui/x-date-pickers
+- @emotion/react, @emotion/styled
+- date-fns
+- react-router-dom
+
+---
+
 # React + TypeScript + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
@@ -67,3 +88,9 @@ export default tseslint.config([
   },
 ])
 ```
+
+# .env example for Duplicate Profile Detector Frontend
+
+VITE_ADMIN_EMAIL=admin@demo.local
+VITE_ADMIN_PASSWORD=adminpass
+VITE_RECEPTION_EMAIL
