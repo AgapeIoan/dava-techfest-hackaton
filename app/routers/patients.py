@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Dict, Set, Tuple
 from fastapi import APIRouter, Depends, HTTPException, Query, Body
 from sqlmodel import Session, select, func
 from ..utils import resolve_run_id
@@ -277,6 +277,127 @@ def list_all_matches_grouped(
 
     return results
 
+
+@router.get(
+    "/all",
+    response_model=List[PatientWithDuplicates],
+    dependencies=[Depends(get_current_user)]
+)
+def list_all_patients_with_dups(
+    run_id: Optional[int] = Query(None, description="If omitted, latest run will be used"),
+    include_deleted: bool = Query(False, description="Include soft-deleted patients"),
+    decisions: List[str] = Query(["match", "review"], description="Which link decisions to include"),
+    limit: int = Query(1000, ge=1, le=10000),
+    offset: int = Query(0, ge=0),
+    session: Session = Depends(get_session),
+):
+    """
+    Returnează toți pacienții (paginat) în format PatientWithDuplicates.
+    Dacă un pacient nu are link-uri (dupuri), `duplicates` va fi lista goală.
+    """
+    run_id = resolve_run_id(session, run_id)
+
+    # 1) Pacienți (paginat)
+    pq = select(Patient)
+    if not include_deleted:
+        pq = pq.where(Patient.is_deleted == False)
+    pq = pq.order_by(Patient.record_id).offset(offset).limit(limit)
+
+    patients: List[Patient] = session.exec(pq).all()
+    if not patients:
+        return []
+
+    record_ids: List[str] = [p.record_id for p in patients]
+    record_ids_set: Set[str] = set(record_ids)
+
+    # 2) Cluster assignments pentru acești pacienți (run curent)
+    assigns = session.exec(
+        select(ClusterAssignment).where(
+            ClusterAssignment.run_id == run_id,
+            ClusterAssignment.record_id.in_(record_ids)
+        )
+    ).all()
+    rid_to_cluster: Dict[str, str] = {a.record_id: a.patient_id for a in assigns}
+
+    # 3) Link-urile relevante (doar cele care ating oricare din record_ids)
+    links = session.exec(
+        select(Link).where(
+            Link.run_id == run_id,
+            Link.decision.in_(decisions),
+            (Link.record_id1.in_(record_ids)) | (Link.record_id2.in_(record_ids))
+        )
+    ).all()
+
+    # 4) Construim best link per (anchor -> other), cu prioritate match > review, apoi scor desc
+    def _rank(l: Link) -> Tuple[int, float]:
+        # match înaintea review (valoare mai mică e mai bună), apoi scor desc (negăm pentru sortare ușoară)
+        return (0 if l.decision == "match" else 1, -(l.score or 0.0))
+
+    best_per_anchor: Dict[str, Dict[str, Link]] = {}  # anchor -> {other_id: best_link}
+    all_other_ids: Set[str] = set()
+
+    for l in links:
+        a, b = l.record_id1, l.record_id2
+
+        # ancorăm de fiecare parte care e în pagina curentă
+        if a in record_ids_set:
+            other = b
+            # exclude self-links dacă există accidental
+            if other != a:
+                d = best_per_anchor.setdefault(a, {})
+                cur = d.get(other)
+                if (cur is None) or (_rank(l) < _rank(cur)):
+                    d[other] = l
+                all_other_ids.add(other)
+
+        if b in record_ids_set:
+            other = a
+            if other != b:
+                d = best_per_anchor.setdefault(b, {})
+                cur = d.get(other)
+                if (cur is None) or (_rank(l) < _rank(cur)):
+                    d[other] = l
+                all_other_ids.add(other)
+
+    # 5) Detalii pentru "other" (pacienți + cluster)
+    others_pat = session.exec(select(Patient).where(Patient.record_id.in_(list(all_other_ids)))).all() if all_other_ids else []
+    rid_to_patient: Dict[str, Patient] = {p.record_id: p for p in others_pat}
+
+    others_assigns = session.exec(
+        select(ClusterAssignment).where(
+            ClusterAssignment.run_id == run_id,
+            ClusterAssignment.record_id.in_(list(all_other_ids)) if all_other_ids else []
+        )
+    ).all() if all_other_ids else []
+    rid_to_cluster_other: Dict[str, str] = {a.record_id: a.patient_id for a in others_assigns}
+
+    # 6) Compunem răspunsul
+    results: List[PatientWithDuplicates] = []
+    for p in patients:
+        cluster_id = rid_to_cluster.get(p.record_id)
+        patient_out = _patient_to_out(p, cluster_id)
+
+        dups: List[DuplicateCandidate] = []
+        by_other = best_per_anchor.get(p.record_id, {})
+
+        # sortare: match înaintea review, apoi scor desc
+        for other_id, lnk in sorted(by_other.items(), key=lambda kv: (kv[1].decision != "match", -(kv[1].score or 0.0))):
+            op = rid_to_patient.get(other_id)
+            op_out = _patient_to_out(op, rid_to_cluster_other.get(other_id)) if op else None
+            dups.append(DuplicateCandidate(
+                other_record_id=other_id,
+                decision=lnk.decision,
+                score=lnk.score or 0.0,
+                s_name=lnk.s_name, s_dob=lnk.s_dob, s_email=lnk.s_email, s_phone=lnk.s_phone,
+                s_address=lnk.s_address, s_gender=lnk.s_gender, s_ssn_hard_match=lnk.s_ssn_hard_match,
+                reason=lnk.reason,
+                other_patient=op_out
+            ))
+
+        results.append(PatientWithDuplicates(patient=patient_out, duplicates=dups))
+
+    return results
+
 @router.get("/{record_id}", response_model=PatientWithDuplicates, dependencies=[Depends(get_current_user)])
 def get_patient_with_dups(
     record_id: str,
@@ -476,3 +597,57 @@ def merge_patients(
         updated_clusters=updated_clusters_count,
         master_after=master_out
     )
+
+@router.delete("/{record_id}", response_model=PatientOut, dependencies=[Depends(get_current_user)])
+def soft_delete_patient(
+    record_id: str,
+    session: Session = Depends(get_session),
+):
+    p = session.exec(select(Patient).where(Patient.record_id == record_id)).first()
+    if not p:
+        raise HTTPException(status_code=404, detail="Pacientul nu există")
+
+    # if not already deleted, mark as deleted
+    if not p.is_deleted:
+        p.is_deleted = True
+        p.deleted_at = datetime.utcnow()
+        session.add(p)
+        session.commit()
+        session.refresh(p)
+
+    # atach cluster_id if any
+    cluster = session.exec(
+        select(ClusterAssignment).where(ClusterAssignment.record_id == record_id)
+    ).first()
+
+    return _patient_to_out(p, cluster.patient_id if cluster else None)
+
+@router.patch("/{record_id}", response_model=PatientOut, dependencies=[Depends(get_current_user)])
+def update_patient(
+    record_id: str,
+    updates: PatientUpdate = Body(..., description="Doar câmpurile de actualizat"),
+    session: Session = Depends(get_session),
+):
+    p = session.exec(select(Patient).where(Patient.record_id == record_id)).first()
+    if not p:
+        raise HTTPException(status_code=404, detail="Pacientul nu există")
+
+    payload = updates.model_dump(exclude_unset=True)
+    if not payload:
+        raise HTTPException(status_code=400, detail="Niciun câmp de actualizat")
+
+    # apply updates
+    for field, value in payload.items():
+        if field in MERGE_MUTABLE_FIELDS:
+            setattr(p, field, value)
+
+    session.add(p)
+    session.commit()
+    session.refresh(p)
+
+    cluster = session.exec(
+        select(ClusterAssignment).where(ClusterAssignment.record_id == record_id)
+    ).first()
+
+    return _patient_to_out(p, cluster.patient_id if cluster else None)
+
