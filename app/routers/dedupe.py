@@ -11,9 +11,9 @@ from ..services.auth_service import require_role
 router = APIRouter(prefix="/dedupe", tags=["dedupe"])
 
 @router.post("/run", dependencies=[Depends(require_role("admin"))])
-def run_dedupe(req: RunRequest, session: Session = Depends(get_session)):
+def run_dedupe(session: Session = Depends(get_session)):
     # 1) create run
-    run = DedupeRun(model_version=req.model_version, strategy=req.strategy)
+    run = DedupeRun(model_version="v1", strategy="full")
     session.add(run)
     session.commit()
     session.refresh(run)
