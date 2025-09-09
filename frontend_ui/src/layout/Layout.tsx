@@ -39,6 +39,7 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import { Link, useLocation , useNavigate } from 'react-router-dom';
 import useDupeStore from '../store/dupeStore';
 import useAdminStore from '../store/adminStore';
+import loginWithBackend from '../store/dupeStore';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 
 const drawerWidth = 280;
@@ -58,7 +59,7 @@ export default function Layout({ children }: PropsWithChildren) {
       role,
       toast,
       clearToast,
-      loginWithEmail,
+      loginWithBackend,
       logout,
       selected,
       loading,
@@ -128,7 +129,7 @@ export default function Layout({ children }: PropsWithChildren) {
                 ),
               }}
             />
-            <Button variant="contained" onClick={() => loginWithEmail(email, password)} fullWidth>Login</Button>
+            <Button variant="contained" onClick={() => loginWithBackend(email, password)} fullWidth>Login</Button>
           </Stack>
         </Box>
         <Snackbar open={!!toast} autoHideDuration={2500} message={toast ?? ''} onClose={clearToast} />

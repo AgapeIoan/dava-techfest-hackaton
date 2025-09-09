@@ -138,7 +138,7 @@ type State = {
   clearToast: () => void;
   loadRoleFromServer: () => Promise<void>;
 
-  loginWithEmail: (email: string, password: string) => void;
+  loginWithBackend: (email: string, password: string) => void;
   logout: () => void;
 
   search: () => Promise<void>;
@@ -212,6 +212,27 @@ const useDupeStore = create<State>()((set, get) => ({
     return;
   },
 
+  loginWithBackend: async (email: string, password: string) => {
+    // Login real cu backend (Bearer token)
+    set({ loading: true });
+    try {
+      const res = await fetch('http://127.0.0.1:8000/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: email, password }),
+      });
+      if (!res.ok) throw new Error('Login failed');
+      const data = await res.json();
+      const token = data.access_token;
+      const userName = data.user?.name || email;
+      const role = data.role;
+      sessionStorage.setItem('token', token);
+      saveAuth({ isAuthenticated: true, email, userName, role, token, remember: true });
+      set({ isAuthenticated: true, email, userName, role, roleSource: 'server', toast: `Signed in as ${userName}`, loading: false });
+    } catch {
+      set({ toast: 'Email sau parolă incorectă!', loading: false });
+    }
+  },
 
   // Login with .env credentials for admin and receptionist
   loginWithEmail: (email: string, password: string) => {
@@ -310,6 +331,7 @@ const useDupeStore = create<State>()((set, get) => ({
       toast: matches.length ? null : 'Nu s-a găsit pacientul.'
     });
   },
+  
   async findDuplicates() {
     const { first, last, db } = get();
     set({ loading: true, patient: null, dupes: [], selected: {} });
