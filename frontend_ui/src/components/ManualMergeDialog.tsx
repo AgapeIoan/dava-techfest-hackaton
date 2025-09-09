@@ -7,8 +7,8 @@ import Box from '@mui/material/Box';
 import Grid from '@mui/material/Grid';
 import FormControl from '@mui/material/FormControl';
 import InputLabel from '@mui/material/InputLabel';
-import Autocomplete from '@mui/material/Autocomplete';
-import TextField from '@mui/material/TextField';
+import Select from '@mui/material/Select';
+import MenuItem from '@mui/material/MenuItem';
 import Button from '@mui/material/Button';
 import type { DuplicateGroupData } from '../pages/Admin';
 
@@ -67,34 +67,78 @@ export default function ManualMergeDialog({
             Personal information
           </Typography>
           <Grid container spacing={2}>
-            {personalFields.map(({ key, label }) => (
-              <Grid item xs={12} md={4} key={key}>
-                <Autocomplete
-                  freeSolo
-                  fullWidth
-                  size="small"
-                  options={[
-                    group.mainProfile[key as keyof typeof group.mainProfile],
-                    ...group.duplicates.map(dup => dup[key as keyof typeof dup])
-                  ].filter((v, i, arr) => v && arr.indexOf(v) === i)}
-                  value={selections[key] || ''}
-                  onInputChange={(_, newInputValue) => onFieldChange(key, newInputValue)}
-                  renderInput={(params) => (
-                    <TextField
-                      {...params}
-                      label={label}
-                      variant="outlined"
-                      inputProps={{
-                        ...params.inputProps,
-                        style: { minWidth: 180, maxWidth: 400 },
-                        maxLength: 100,
-                      }}
-                      sx={{ minWidth: 180, maxWidth: 400 }}
-                    />
+            {personalFields.map(({ key, label }) => {
+              // Gather all values for this field from mainProfile and duplicates
+              const values = [
+                group.mainProfile[key as keyof typeof group.mainProfile],
+                ...group.duplicates.map(dup => dup[key as keyof typeof dup])
+              ];
+              const uniqueValues = Array.from(new Set(values));
+              const onlyOne = uniqueValues.length === 1;
+              return (
+                <Grid item xs={12} md={4} key={key}>
+                  {onlyOne ? (
+                    <FormControl fullWidth size="small" disabled>
+                      <InputLabel>{label}</InputLabel>
+                      <Select value={uniqueValues[0]} label={label} disabled renderValue={() => (
+                        <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span>{uniqueValues[0]}</span>
+                          <span style={{ fontSize: '0.8em', marginLeft: 8, color: '#888', flex: 1, textAlign: 'right' }}>Keeper</span>
+                        </span>
+                      )}>
+                        <MenuItem value={uniqueValues[0]}>{uniqueValues[0]} <em>Keeper</em></MenuItem>
+                      </Select>
+                    </FormControl>
+                  ) : (
+                    <FormControl fullWidth size="small">
+                      <InputLabel>{label}</InputLabel>
+                      <Select
+                        value={selections[key] || ''}
+                        label={label}
+                        onChange={e => onFieldChange(key, e.target.value)}
+                        renderValue={selected => {
+                          if (selected === group.mainProfile[key as keyof typeof group.mainProfile]) {
+                            return (
+                              <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span>{selected}</span>
+                                <span style={{ fontSize: '0.8em', marginLeft: 8, color: '#888', flex: 1, textAlign: 'right' }}>Keeper</span>
+                              </span>
+                            );
+                          }
+                          const dupIdx = group.duplicates.findIndex(dup => dup[key as keyof typeof dup] === selected);
+                          if (dupIdx !== -1) {
+                            return (
+                              <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span>{selected}</span>
+                                <span style={{ fontSize: '0.8em', marginLeft: 8, color: '#888', flex: 1, textAlign: 'right' }}>Duplicate</span>
+                              </span>
+                            );
+                          }
+                          return selected;
+                        }}
+                      >
+                        <MenuItem value={group.mainProfile[key as keyof typeof group.mainProfile]}>
+                          <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                            <span>{group.mainProfile[key as keyof typeof group.mainProfile]}</span>
+                            <span style={{ fontSize: '0.8em', marginLeft: 8, color: '#888', flex: 1, textAlign: 'right' }}>Keeper</span>
+                          </span>
+                        </MenuItem>
+                        {uniqueValues
+                          .filter(v => v !== group.mainProfile[key as keyof typeof group.mainProfile])
+                          .map((v, idx) => (
+                            <MenuItem value={v} key={idx}>
+                              <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                                <span>{v}</span>
+                                <span style={{ fontSize: '0.8em', marginLeft: 8, color: '#888', flex: 1, textAlign: 'right' }}>Duplicate</span>
+                              </span>
+                            </MenuItem>
+                          ))}
+                      </Select>
+                    </FormControl>
                   )}
-                />
-              </Grid>
-            ))}
+                </Grid>
+              );
+            })}
           </Grid>
           <Typography
             variant="subtitle1"
@@ -103,34 +147,82 @@ export default function ManualMergeDialog({
             Address
           </Typography>
           <Grid container spacing={2}>
-            {addressFields.map(({ key, label }) => (
-              <Grid item xs={12} md={4} key={key}>
-                <Autocomplete
-                  freeSolo
-                  fullWidth
-                  size="small"
-                  options={[
-                    group.mainProfile[key as keyof typeof group.mainProfile],
-                    ...group.duplicates.map(dup => dup[key as keyof typeof dup])
-                  ].filter((v, i, arr) => v && arr.indexOf(v) === i)}
-                  value={selections[key] || ''}
-                  onInputChange={(_, newInputValue) => onFieldChange(key, newInputValue)}
-                  renderInput={(params) => (
-                    <TextField
-                      {...params}
-                      label={label}
-                      variant="outlined"
-                      inputProps={{
-                        ...params.inputProps,
-                        style: { minWidth: 180, maxWidth: 400 },
-                        maxLength: 100,
-                      }}
-                      sx={{ minWidth: 180, maxWidth: 400 }}
-                    />
+            {addressFields.map(({ key, label }) => {
+              const values = [
+                group.mainProfile[key as keyof typeof group.mainProfile],
+                ...group.duplicates.map(dup => dup[key as keyof typeof dup])
+              ];
+              const uniqueValues = Array.from(new Set(values));
+              const onlyOne = uniqueValues.length === 1;
+              return (
+                <Grid item xs={12} md={4} key={key}>
+                  {onlyOne ? (
+                    <FormControl fullWidth size="small" disabled>
+                      <InputLabel>{label}</InputLabel>
+                      <Select value={uniqueValues[0]} label={label} disabled renderValue={() => (
+                        <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span>{uniqueValues[0]}</span>
+                          <span style={{ fontSize: '0.8em', marginLeft: 8, color: '#888', flex: 1, textAlign: 'right' }}>Keeper</span>
+                        </span>
+                      )}>
+                        <MenuItem value={uniqueValues[0]}>
+                          <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                            <span>{uniqueValues[0]}</span>
+                            <span style={{ fontSize: '0.8em', marginLeft: 8, color: '#888', flex: 1, textAlign: 'right' }}>Keeper</span>
+                          </span>
+                        </MenuItem>
+                      </Select>
+                    </FormControl>
+                  ) : (
+                    <FormControl fullWidth size="small">
+                      <InputLabel>{label}</InputLabel>
+                      <Select
+                        value={selections[key] || ''}
+                        label={label}
+                        onChange={e => onFieldChange(key, e.target.value)}
+                        renderValue={selected => {
+                          if (selected === group.mainProfile[key as keyof typeof group.mainProfile]) {
+                            return (
+                              <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span>{selected}</span>
+                                <span style={{ fontSize: '0.8em', marginLeft: 8, color: '#888', flex: 1, textAlign: 'right' }}>Keeper</span>
+                              </span>
+                            );
+                          }
+                          const dupIdx = group.duplicates.findIndex(dup => dup[key as keyof typeof dup] === selected);
+                          if (dupIdx !== -1) {
+                            return (
+                              <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span>{selected}</span>
+                                <span style={{ fontSize: '0.8em', marginLeft: 8, color: '#888', flex: 1, textAlign: 'right' }}>Duplicate</span>
+                              </span>
+                            );
+                          }
+                          return selected;
+                        }}
+                      >
+                        <MenuItem value={group.mainProfile[key as keyof typeof group.mainProfile]}>
+                          <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                            <span>{group.mainProfile[key as keyof typeof group.mainProfile]}</span>
+                            <span style={{ fontSize: '0.8em', marginLeft: 8, color: '#888', flex: 1, textAlign: 'right' }}>Keeper</span>
+                          </span>
+                        </MenuItem>
+                        {uniqueValues
+                          .filter(v => v !== group.mainProfile[key as keyof typeof group.mainProfile])
+                          .map((v, idx) => (
+                            <MenuItem value={v} key={idx}>
+                              <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                                <span>{v}</span>
+                                <span style={{ fontSize: '0.8em', marginLeft: 8, color: '#888', flex: 1, textAlign: 'right' }}>Duplicate</span>
+                              </span>
+                            </MenuItem>
+                          ))}
+                      </Select>
+                    </FormControl>
                   )}
-                />
-              </Grid>
-            ))}
+                </Grid>
+              );
+            })}
           </Grid>
           <Typography
             variant="subtitle1"
@@ -139,34 +231,82 @@ export default function ManualMergeDialog({
             Contact
           </Typography>
           <Grid container spacing={2}>
-            {contactFields.map(({ key, label }) => (
-              <Grid item xs={12} md={6} key={key}>
-                <Autocomplete
-                  freeSolo
-                  fullWidth
-                  size="small"
-                  options={[
-                    group.mainProfile[key as keyof typeof group.mainProfile],
-                    ...group.duplicates.map(dup => dup[key as keyof typeof dup])
-                  ].filter((v, i, arr) => v && arr.indexOf(v) === i)}
-                  value={selections[key] || ''}
-                  onInputChange={(_, newInputValue) => onFieldChange(key, newInputValue)}
-                  renderInput={(params) => (
-                    <TextField
-                      {...params}
-                      label={label}
-                      variant="outlined"
-                      inputProps={{
-                        ...params.inputProps,
-                        style: { minWidth: 180, maxWidth: 400 },
-                        maxLength: 100,
-                      }}
-                      sx={{ minWidth: 180, maxWidth: 400 }}
-                    />
+            {contactFields.map(({ key, label }) => {
+              const values = [
+                group.mainProfile[key as keyof typeof group.mainProfile],
+                ...group.duplicates.map(dup => dup[key as keyof typeof dup])
+              ];
+              const uniqueValues = Array.from(new Set(values));
+              const onlyOne = uniqueValues.length === 1;
+              return (
+                <Grid item xs={12} md={6} key={key}>
+                  {onlyOne ? (
+                    <FormControl fullWidth size="small" disabled>
+                      <InputLabel>{label}</InputLabel>
+                      <Select value={uniqueValues[0]} label={label} disabled renderValue={() => (
+                        <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span>{uniqueValues[0]}</span>
+                          <span style={{ fontSize: '0.8em', marginLeft: 8, color: '#888', flex: 1, textAlign: 'right' }}>Keeper</span>
+                        </span>
+                      )}>
+                        <MenuItem value={uniqueValues[0]}>
+                          <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                            <span>{uniqueValues[0]}</span>
+                            <span style={{ fontSize: '0.8em', marginLeft: 8, color: '#888', flex: 1, textAlign: 'right' }}>Keeper</span>
+                          </span>
+                        </MenuItem>
+                      </Select>
+                    </FormControl>
+                  ) : (
+                    <FormControl fullWidth size="small">
+                      <InputLabel>{label}</InputLabel>
+                      <Select
+                        value={selections[key] || ''}
+                        label={label}
+                        onChange={e => onFieldChange(key, e.target.value)}
+                        renderValue={selected => {
+                          if (selected === group.mainProfile[key as keyof typeof group.mainProfile]) {
+                            return (
+                              <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span>{selected}</span>
+                                <span style={{ fontSize: '0.8em', marginLeft: 8, color: '#888', flex: 1, textAlign: 'right' }}>Keeper</span>
+                              </span>
+                            );
+                          }
+                          const dupIdx = group.duplicates.findIndex(dup => dup[key as keyof typeof dup] === selected);
+                          if (dupIdx !== -1) {
+                            return (
+                              <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span>{selected}</span>
+                                <span style={{ fontSize: '0.8em', marginLeft: 8, color: '#888', flex: 1, textAlign: 'right' }}>Duplicate</span>
+                              </span>
+                            );
+                          }
+                          return selected;
+                        }}
+                      >
+                        <MenuItem value={group.mainProfile[key as keyof typeof group.mainProfile]}>
+                          <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                            <span>{group.mainProfile[key as keyof typeof group.mainProfile]}</span>
+                            <span style={{ fontSize: '0.8em', marginLeft: 8, color: '#888', flex: 1, textAlign: 'right' }}>Keeper</span>
+                          </span>
+                        </MenuItem>
+                        {uniqueValues
+                          .filter(v => v !== group.mainProfile[key as keyof typeof group.mainProfile])
+                          .map((v, idx) => (
+                            <MenuItem value={v} key={idx}>
+                              <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                                <span>{v}</span>
+                                <span style={{ fontSize: '0.8em', marginLeft: 8, color: '#888', flex: 1, textAlign: 'right' }}>Duplicate</span>
+                              </span>
+                            </MenuItem>
+                          ))}
+                      </Select>
+                    </FormControl>
                   )}
-                />
-              </Grid>
-            ))}
+                </Grid>
+              );
+            })}
           </Grid>
         </Box>
       </DialogContent>
