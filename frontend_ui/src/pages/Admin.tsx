@@ -17,11 +17,13 @@ import {
   Grid,
   Alert
 } from '@mui/material';
-// import Grid from '@mui/material/Grid';
+
 import DuplicateGroup from '../components/DuplicateGroupCard';
 import { UploadFile as UploadFileIcon, Search as SearchIcon, PlayCircleOutline as RunIcon } from '@mui/icons-material';
 import useAdminStore from '../store/adminStore';
 import ManualMergeDialog from '../components/ManualMergeDialog';
+import ConfirmMergeDialog from '../components/ConfirmMergeDialog';
+
 // --- TYPE DEFINITIONS ---
 export interface Profile {
   id: number;
@@ -256,6 +258,9 @@ export default function AdminPage() {
   // Manual merge modal state
   const [manualMergeGroup, setManualMergeGroup] = useState<DuplicateGroupData | null>(null);
   const [mergeSelections, setMergeSelections] = useState<Record<string, string>>({});
+  // --- State for the Confirmation Modal ---
+  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+  const [groupsToConfirm, setGroupsToConfirm] = useState<DuplicateGroupData[]>([]);
 
   const [selectedRunId, setSelectedRunId] = useState<number | null>(null);
 
@@ -318,14 +323,63 @@ export default function AdminPage() {
     }, 1500);
   };
 
+//   const handleAutoMerge = () => {
+//     if (selectedGroups.size === 0) return;
+//     setIsLoading(true);
+//     setTimeout(() => {
+//       setAllGroups(prev => prev.filter(group => !selectedGroups.has(group.mainProfile.id)));
+//       setSelectedGroups(new Set());
+//       setIsLoading(false);
+//     }, 1000);
+//   };
   const handleAutoMerge = () => {
     if (selectedGroups.size === 0) return;
+    const groupsToMerge = allGroups.filter(group => selectedGroups.has(group.mainProfile.id));
+    setGroupsToConfirm(groupsToMerge);
+    setIsConfirmModalOpen(true);
+  };
+
+  // --- Handlers for the Confirmation Modal ---
+//   const handleApproveConfirmMerge = () => {
+//     setIsLoading(true);
+//     // Simulate API call
+//     setTimeout(() => {
+//       // On success, filter the main list and reset selections
+//       setAllGroups(prev => prev.filter(group => !selectedGroups.has(group.mainProfile.id)));
+//       setSelectedGroups(new Set());
+//       setIsLoading(false);
+//       setIsConfirmModalOpen(false);
+//     }, 1000);
+//   };
+  const handleApproveConfirmMerge = (approvedGroups: DuplicateGroupData[]) => {
+    if (approvedGroups.length === 0) {
+      // This case should be handled by the disabled button, but as a safeguard:
+      setIsConfirmModalOpen(false);
+      return;
+    }
+    const approvedIds = new Set(approvedGroups.map(g => g.mainProfile.id));
+
     setIsLoading(true);
+    // Simulate API call
     setTimeout(() => {
-      setAllGroups(prev => prev.filter(group => !selectedGroups.has(group.mainProfile.id)));
-      setSelectedGroups(new Set());
+      // On success, filter the main list based on the approved IDs
+      setAllGroups(prev => prev.filter(group => !approvedIds.has(group.mainProfile.id)));
+
+      // Also update the selection set to remove the merged groups
+      setSelectedGroups(prev => {
+        const newSelection = new Set(prev);
+        approvedIds.forEach(id => newSelection.delete(id));
+        return newSelection;
+      });
+
       setIsLoading(false);
+      setIsConfirmModalOpen(false);
     }, 1000);
+  };
+
+  const handleCancelConfirmMerge = () => {
+    setIsConfirmModalOpen(false);
+    setGroupsToConfirm([]);
   };
 
   const handleDismissGroup = (mainProfileId: number) => {
@@ -397,7 +451,7 @@ export default function AdminPage() {
     setMergeSelections(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleApproveMerge = () => {
+  const handleApproveManualMerge = () => {
     // Here you would send mergeSelections to backend or update state
     // For demo, just close modal and remove group from list
     if (manualMergeGroup) {
@@ -516,9 +570,15 @@ export default function AdminPage() {
         group={manualMergeGroup}
         selections={mergeSelections}
         onFieldChange={handleMergeFieldChange}
-        onApprove={handleApproveMerge}
+        onApprove={handleApproveManualMerge}
         onClose={handleCloseManualMerge}
       />
+        <ConfirmMergeDialog
+            open={isConfirmModalOpen}
+            groups={groupsToConfirm}
+            onApprove={handleApproveConfirmMerge}
+            onCancel={handleCancelConfirmMerge}
+        />
     </Box>
   );
 }
