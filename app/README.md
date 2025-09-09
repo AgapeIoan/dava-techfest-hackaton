@@ -93,3 +93,20 @@ http://localhost:8000
 }
 
 ```
+
+### 9. Edit patient
+- **Endpoint**: `PATCH /patients/{record_id}`
+- Body: JSON
+```
+{
+  "first_name": "Dave",
+  "address": "3573 Robbin sStravenue"
+}
+```
+
+### 10. Delete patient (soft)
+- **Endpoint**: `DELETE /patients/{record_id}`
+
+### 11. List all patients with duplicate info
+- **Endpoint**: `GET /patients/all
+- Response: Similar to 5. Search patients by name
