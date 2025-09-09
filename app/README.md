@@ -23,24 +23,11 @@ http://localhost:8000
 - Response: 
 ```{ "run_id": 1, "links_inserted": 1234, "clusters": 456 }```
 
-### 3. List deduplication links
+### 3. Export links as CSV
+- **Endpoint**: `GET /export/links.csv`
 
-- **Endpoint**: `GET /links/clusters?run_id=1`
-- Response: 
-```
-  {
-  "clusters": [
-    { "cluster_id": "P00001", "records": ["R001","R057","R103"] },
-    { "cluster_id": "P00002", "records": ["R002"] }
-  ]
-}
-  ```
-
-### 4. Export links as CSV
-- **Endpoint**: `GET /export/links.csv?run_id=1`
-
-### 5. Search patients by name
-- **Endpoint**: `GET /patients/search?name=Kim%20Carter&run_id=1`
+### 4. Search patients by name
+- **Endpoint**: `GET /patients/search?name=Kim%20Carter`
 - Response:
 ```
     {
@@ -96,13 +83,15 @@ http://localhost:8000
     },
 ```
 
-### 6. Get patient details by record ID
-- **Endpoint**: `GET /patients/{record_id}?run_id=1`
+### 5. Get patient details by record ID
+- **Endpoint**: `GET /patients/{record_id}`
+- Response: Similar to 4. Search patients by name
 
-### 7. Get all matches
-- **Endpoint**: `GET /patients/matches?run_id=2`
+### 6. Get all matches
+- **Endpoint**: `GET /patients/matches`
+- Response: Similar to 4. Search patients by name - but for all patients with duplicates
 
-### 8. Merge 
+### 7. Merge 
 - **Endpoint**: `POST /patients/merge`
 - Body: JSON
 ```
@@ -118,7 +107,7 @@ http://localhost:8000
 
 ```
 
-### 9. Edit patient
+### 8. Edit patient
 - **Endpoint**: `PATCH /patients/{record_id}`
 - Body: JSON
 ```
@@ -128,9 +117,61 @@ http://localhost:8000
 }
 ```
 
-### 10. Delete patient (soft)
+### 9. Delete patient (soft)
 - **Endpoint**: `DELETE /patients/{record_id}`
 
-### 11. List all patients with duplicate info
+### 10. List all patients with duplicate info
 - **Endpoint**: `GET /patients/all
+- Response: Similar to 4. Search patients by name
+
+### 11. Add patient (with duplicate check)
+- **Endpoint**: `POST /intake/add_or_check`
+- Body: JSON
+```
+{
+        "first_name": "Michael",
+        "last_name": "Robinson",
+        "gender": "M",
+        "date_of_birth": "1971-10-13",
+        "address": "0866 Anne Lake Apt. 158",
+        "city": "Acworth",
+        "county": "South Dakota",
+        "ssn": "562-77-3079",
+        "phone_number": "7658676545",
+        "email": "mrobinson@protonmail.com"
+}
+```
+
+- Response:
+```
+{
+    "created": false,
+    "record_id": "1504",
+    "decision": "duplicate_found",
+    "patient_id": "P00008",
+    "duplicates": [
+        {
+            "other_record_id": "1502",
+    .....
+ 
+```
+
+### 12. Add patient (without duplicate check - force)
+- **Endpoint**: `POST /intake/force_add`
+- Body: JSON
+```
+{
+        "first_name": "Michael",
+        "last_name": "Robinson",
+        "gender": "M",
+        "date_of_birth": "1971-10-13",
+        "address": "0866 Anne Lake Apt. 158",
+        "city": "Acworth",
+        "county": "South Dakota",
+        "ssn": "562-77-3079",
+        "phone_number": "7658676545",
+        "email": "mrobinson@protonmail.com"
+}
+```
 - Response: Similar to 5. Search patients by name
+
