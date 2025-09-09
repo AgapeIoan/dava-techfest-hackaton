@@ -22,7 +22,7 @@ def run_dedupe(req: RunRequest, session: Session = Depends(get_session)):
     df_pat = df_from_patients_table(session)
 
     # 3) run pipeline
-    canonical_df, links_df, clusters = run_pipeline(df_pat)
+    links_df, clusters = run_pipeline(df_pat)
 
     # 4) persist links
     link_models = links_df_to_models(links_df, run_id=run.id)
