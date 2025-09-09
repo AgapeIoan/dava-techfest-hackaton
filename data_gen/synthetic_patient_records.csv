@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 record_id,first_name,last_name,gender,date_of_birth,address,city,county,ssn,phone_number,email
 1,Daniel,Hughes,M,2005-03-11,8046 Robin Views,Front Royal,Mississippi,322-72-8148,7863171848,daniel.hughes@hotmail.com
 2,Elizabeth,Rodriguez,F,1960-04-17,75684 Alexis Dale,Encinitas,Idaho,893-54-2330,8396098192,elizabeth.rodriguez@yahoo.com
@@ -29999,3 +30000,16 @@ record_id,first_name,last_name,gender,date_of_birth,address,city,county,ssn,phon
 29998,Jennifer,Hodge,F,1935-08-18,75748 Johns Forks Apt. 100,Scotch Plains,Oregon,814-99-7416,9532849505,hodge.jennifer@protonmail.com
 29999,Shelly,King,F,1988-05-17,11424 Melissa Gateway Apt. 602,Jersey City,Montana,788-64-4786,3669788491,shellyking@hotmail.com
 30000,Jeffery,King,M,2004-05-01,807 Fisher Oval,Thomasville,Wisconsin,302-83-9809,1026548188,king.jeffery@hotmail.com
+=======
+record_id,first_name,last_name,gender,date_of_birth,street,street_number,city,county,ssn,phone_number,email
+1,Beverly,Allen,F,1934-11-12,Cynthia Oval,36869,Aaronberg,Texas,015-92-7612,0542957130,beverlyallen@protonmail.com
+2,Jacob,Khan,M,1978-07-30,Ochoa Mountains,6767,New Josestad,Vermont,171-28-7488,2329056404,jacobkhan@outlook.com
+3,Kenneth,Stevens,M,1971-02-04,Richmond Stravenue,1934,Tracyville,Massachusetts,038-28-0633,8253628672,stevens.kenneth@hotmail.com
+4,Jacqueline,Wood,F,1999-03-23,Diana Mission,48855,Hansenview,Missouri,035-47-8633,0115337602,jwood@yahoo.com
+5,Jonathan,Munoz,M,1949-10-11,Adam Junction,9681,Christianview,West Virginia,610-17-8688,8758244287,jmunoz@gmail.com
+6,Margaret,Chavez,F,1966-03-29,Lauren View,5356,Williamsshire,North Carolina,721-08-8970,6231651653,margaretc@gmail.com
+7,Danny,Brooks,M,1955-09-26,Williams Land,757,Hudsonshire,Indiana,857-36-3227,9766841215,dbrooks@yahoo.com
+8,Taylor,Peterson,M,1964-02-02,Frey Extension,778,Villanuevamouth,Colorado,290-55-5834,9290740629,taylorpeterson@protonmail.com
+9,Crystal,Bennett,F,1973-05-29,Alvarez Locks,472,West Debbie,Idaho,618-17-6291,0029413448,crystal.bennett@protonmail.com
+10,Kathleen,Russell,F,1993-01-27,Walker Rue,452,North Ernest,Delaware,143-07-2455,5685949123,kathleen.russell@outlook.com
+>>>>>>> 31461708d9b561792df977b178e765b3c0f863d0
