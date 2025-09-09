@@ -88,3 +88,9 @@ export default tseslint.config([
   },
 ])
 ```
+
+# .env example for Duplicate Profile Detector Frontend
+
+VITE_ADMIN_EMAIL=admin@demo.local
+VITE_ADMIN_PASSWORD=adminpass
+VITE_RECEPTION_EMAIL
