@@ -43,33 +43,57 @@ http://localhost:8000
 - **Endpoint**: `GET /patients/search?name=Kim%20Carter&run_id=1`
 - Response:
 ```
-[
-  {
-    "patient": {
-      "record_id": "416",
-      "first_name": "Kim",
-      "last_name": "Carter",
-      "gender": "F",
-      "date_of_birth": "1978-04-03",
-      "email": "kimc@protonmail.com",
-      "cluster_id": "P00416"
+    {
+        "patient": {
+            "record_id": "107",
+            "original_record_id": "5",
+            "first_name": "Brady M",
+            "last_name": "wori",
+            "gender": "F",
+            "date_of_birth": "1972-02-11",
+            "address": "4399J oseph Parkways",
+            "city": "",
+            "county": "Hawaii",
+            "ssn": "339-12-0338",
+            "phone_number": "0325628265",
+            "email": "lauriebrady@outlook.com",
+            "cluster_id": "P00005",
+            "is_deleted": false,
+            "merged_into": null
+        },
+        "duplicates": [
+            {
+                "other_record_id": "5",
+                "decision": "match",
+                "score": 0.5686,
+                "s_name": 0.6333,
+                "s_dob": 0.0,
+                "s_email": 1.0,
+                "s_phone": 1.0,
+                "s_address": 0.2857,
+                "s_gender": 1.0,
+                "s_ssn_hard_match": 1.0,
+                "reason": "ssn_hard",
+                "other_patient": {
+                    "record_id": "5",
+                    "original_record_id": "",
+                    "first_name": "Laurie",
+                    "last_name": "Brady",
+                    "gender": "F",
+                    "date_of_birth": "1972-11-02",
+                    "address": "4399 Joseph Parkways",
+                    "city": "Patrickview",
+                    "county": "Hawaii",
+                    "ssn": "339-12-0338",
+                    "phone_number": "0325628265",
+                    "email": "lauriebrady@outlook.com",
+                    "cluster_id": "P00005",
+                    "is_deleted": false,
+                    "merged_into": null
+                }
+            }
+        ]
     },
-    "duplicates": [
-      {
-        "other_record_id": "1297",
-        "decision": "match",
-        "score": 0.8857,
-        "reason": "ssn_hard",
-        "other_patient": {
-          "record_id": "1297",
-          "first_name": "aKim",
-          "last_name": "Carter",
-          "cluster_id": "P00416"
-        }
-      }
-    ]
-  }
-]
 ```
 
 ### 6. Get patient details by record ID
