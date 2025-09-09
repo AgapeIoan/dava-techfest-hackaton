@@ -223,6 +223,7 @@ const useDupeStore = create<State>()((set, get) => ({
       });
       if (!res.ok) throw new Error('Login failed');
       const data = await res.json();
+      console.log('Login response data:', data);
       const token = data.access_token;
       const userName = data.user?.name || email;
       const role = data.role;
@@ -306,32 +307,75 @@ const useDupeStore = create<State>()((set, get) => ({
     });
   },
 
+  //Search patients and duplicates from backend in /duplicates
   async search() {
-    const { role, first, last, db } = get();
-    if (role !== 'admin' && role !== 'receptionist') {
-      set({ toast: 'Doar admin sau receptionist poate folosi search.' });
-      return;
-    }
-    if (!first) {
-      set({ toast: 'Completează prenumele!' });
-      return;
-    }
-    set({ loading: true, patient: null, dupes: [], selected: {} });
+    const { role, first, last } = get();
+    console.log('search() - valori inițiale:', { role, first, last });
+      if (role !== 'admin' && role !== 'receptionist') {
+        set({ toast: 'Doar admin sau receptionist poate folosi search.' });
+        return;
+      }
+      if (!first) {
+        set({ toast: 'Completează prenumele!' });
+        return;
+      }
+      set({ loading: true, patient: null, dupes: [], selected: {} });
 
-    // Caută toți pacienții al căror prenume și nume încep cu textul introdus
-    const matches = db.filter(p =>
-      p.firstName.toLowerCase().startsWith(first.toLowerCase()) &&
-      (!last || p.lastName.toLowerCase().startsWith(last.toLowerCase()))
-    );
-
-    set({
-      patient: matches[0] || null,
-      dupes: matches.slice(1),
-      loading: false,
-      toast: matches.length ? null : 'Nu s-a găsit pacientul.'
-    });
+      try {
+        // Build query string for backend
+        let query = encodeURIComponent(first);
+        if (last) query += '%%20' + encodeURIComponent(last);
+        console.log('Query trimis la backend:', query);
+        const token = sessionStorage.getItem('token');
+        const res = await fetch(`http://127.0.0.1:8000/patients/search?name=${query}`,
+          token ? { headers: { Authorization: `Bearer ${token}` } } : undefined
+        );
+        if (!res.ok) throw new Error('Eroare la căutare!');
+        const data = await res.json();
+        if (!data || !data.length) {
+          set({ loading: false, toast: 'Nu s-a găsit pacientul.' });
+          return;
+        }
+        // Map backend response to Patient and DuplicateRow
+        const main = data[0];
+        const patient = {
+          id: main.patient.record_id,
+          firstName: main.patient.first_name,
+          lastName: main.patient.last_name,
+          ssn: main.patient.ssn,
+          dob: main.patient.date_of_birth,
+          phone: main.patient.phone_number,
+          email: main.patient.email,
+          address: {
+            street: main.patient.address,
+            number: '',
+            city: main.patient.city,
+            county: main.patient.county
+          }
+        };
+        const dupes = (main.duplicates || []).map((d: any) => ({
+          id: d.other_patient.record_id,
+          firstName: d.other_patient.first_name,
+          lastName: d.other_patient.last_name,
+          ssn: d.other_patient.ssn,
+          dob: d.other_patient.date_of_birth,
+          phone: d.other_patient.phone_number,
+          email: d.other_patient.email,
+          address: {
+            street: d.other_patient.address,
+            number: '',
+            city: d.other_patient.city,
+            county: d.other_patient.county
+          },
+          matchPct: d.score * 100,
+          reasons: [d.reason]
+        }));
+        set({ patient, dupes, loading: false, toast: null });
+      } catch (e) {
+        set({ loading: false, toast: 'Eroare la căutare!' });
+      }
   },
-  
+
   async findDuplicates() {
     const { first, last, db } = get();
     set({ loading: true, patient: null, dupes: [], selected: {} });

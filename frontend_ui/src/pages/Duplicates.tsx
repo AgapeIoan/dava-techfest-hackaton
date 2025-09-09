@@ -83,7 +83,7 @@ export default function DuplicatesPage() {
     setAddOpen(false);
   };
 
-  const { first, last, setFirst, setLast, loading, patient, dupes, findDuplicates, isAuthenticated, role } = useDupeStore()
+  const { first, last, setFirst, setLast, loading, patient, dupes, findDuplicates, isAuthenticated, role, search } = useDupeStore()
   const [dob, setDob] = useState<string>('');
   const [searchAttempted, setSearchAttempted] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -159,7 +159,7 @@ export default function DuplicatesPage() {
                   // @ts-ignore
                   window.__dupe_dob = dob;
                   setSearchAttempted(true);
-                  findDuplicates();
+                  search();
                 }}
                 variant="contained"
                 disabled={!first || !last || loading}
