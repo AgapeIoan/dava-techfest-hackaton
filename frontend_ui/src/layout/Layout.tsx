@@ -1,5 +1,3 @@
-// --- START OF FILE src/layout/Layout.tsx ---
-
 import { PropsWithChildren, useMemo, useEffect, useState, useRef } from 'react';
 import {
   AppBar,
@@ -88,14 +86,18 @@ export default function Layout({ children }: PropsWithChildren) {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
+  // Redirect after login: admin -> /admin, receptionist -> /duplicates
   useEffect(() => {
-    if (!isAuthenticated) {
-      setEmail('');
-      setPassword('');
+ if (isAuthenticated) {
+      if (role === 'admin' && loc.pathname !== '/admin') {
+        navigate('/admin', { replace: true });
+      } else if (role === 'receptionist' && loc.pathname !== '/duplicates') {
+        navigate('/duplicates', { replace: true });
+      }
     }
-  }, [isAuthenticated]);
+}, [isAuthenticated, role, navigate, loc.pathname]);
 
-  // --- 1. LOGIN SCREEN (Unchanged) ---
+  // --- 1. LOGIN SCREEN ---
   if (!isAuthenticated) {
     const bgReceptionist = 'linear-gradient(120deg, #e0c3fc 0%, #8ec5fc 50%, #f093fb 100%, #f5576c 120%)';
     const bgDefault = 'url(/medical-bg.svg)';
@@ -165,7 +167,7 @@ export default function Layout({ children }: PropsWithChildren) {
     </AppBar>
   );
 
-  // --- 2. RECEPTIONIST LAYOUT (Unchanged) ---
+  // --- 2. RECEPTIONIST LAYOUT ---
   if (role === 'receptionist') {
     const bgReceptionist = 'linear-gradient(120deg, #e0c3fc 0%, #8ec5fc 50%, #f093fb 100%, #f5576c 120%)';
     return (
