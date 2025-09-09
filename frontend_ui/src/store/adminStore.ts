@@ -1,6 +1,15 @@
 import { create } from 'zustand';
+import { API_BASE, getAuthToken } from './dupeStore';
+
 
 // --- TYPE DEFINITIONS ---
+// This should match the DuplicateGroupData from Admin.tsx
+export interface DuplicateGroupData {
+  mainProfile: any; // Replace with your actual Profile type
+  duplicates: any[]; // Replace with your actual DuplicateProfile type
+  confidence: 'high' | 'medium' | 'low';
+}
+
 export interface DetectionRun {
   id: number;
   status: 'running' | 'completed' | 'failed';
@@ -34,13 +43,17 @@ function loadRunHistory(): DetectionRun[] {
 // --- STORE DEFINITION ---
 type AdminState = {
   runHistory: DetectionRun[];
-  startDetectionJob: () => void;
+  duplicateGroups: DuplicateGroupData[];  // state to hold fetched duplicate groups
+  isLoading: boolean;   // state for loading indicator
+  startDetectionJob: () => Promise<void>;
+  fetchDuplicateGroups: (runId: number) => Promise<void>;  // action to fetch results
 };
 
 const useAdminStore = create<AdminState>((set, get) => ({
   runHistory: loadRunHistory(),
-
-  startDetectionJob: () => {
+  duplicateGroups: [],  // initial state
+  isLoading: false,     // initial state
+  startDetectionJob: async () => {
     const history = get().runHistory;
     if (history.some(run => run.status === 'running')) {
       return; // A job is already running, do nothing.
@@ -86,6 +99,48 @@ const useAdminStore = create<AdminState>((set, get) => ({
       }
     }, 15 * 1000);
   },
+
+  fetchDuplicateGroups: async (runId: number) => {
+    if (!runId) {
+      console.error("No runId provided to fetchDuplicateGroups.");
+      return;
+    }
+
+    const token = getAuthToken();
+    if (!token) {
+      console.error("Authentication token not found.");
+      // You could set an error state here
+      return;
+    }
+
+    set({ isLoading: true, duplicateGroups: [] }); // Set loading and clear old results
+
+    try {
+      const response = await fetch(`${API_BASE}/patients/matches?run_id=${runId}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `Failed to fetch results for run #${runId}.`);
+      }
+
+      const results: DuplicateGroupData[] = await response.json();
+      set({ duplicateGroups: results });
+
+    } catch (error) {
+      console.error("Error fetching duplicate groups:", error);
+      // You could set an error state here to show in the UI
+    } finally {
+      set({ isLoading: false }); // Always turn off loading indicator
+    }
+  },
 }));
+
+
 
 export default useAdminStore;

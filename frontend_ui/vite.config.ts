@@ -4,9 +4,9 @@ import react from '@vitejs/plugin-react-swc'
 export default defineConfig({
   plugins: [react()],
   server: {
-    // API MODE: decomentează proxy-ul când rulezi backendul pe http://localhost:8000
     proxy: {
-      '/ingest': { target: 'http://localhost:8000', changeOrigin: true }
+      '/ingest': { target: 'http://localhost:8000', changeOrigin: true },
+      '/patients': { target: 'http://localhost:8000', changeOrigin: true },
     }
   }
 })
