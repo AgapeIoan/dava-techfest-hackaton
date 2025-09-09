@@ -17,10 +17,10 @@ import {
   MenuItem,
   Grid,
 } from '@mui/material';
-import DuplicateGroup from '../components/DuplicateGroup';
+import DuplicateGroup from '../components/DuplicateGroupCard';
 import { UploadFile as UploadFileIcon, Search as SearchIcon } from '@mui/icons-material';
 
-// --- TYPE DEFINITIONS (Updated) ---
+// --- TYPE DEFINITIONS ---
 export interface Profile {
   id: number;
   fullName: string;
@@ -39,7 +39,7 @@ export interface DuplicateGroupData {
   confidence: 'high' | 'medium' | 'low'; // For filtering
 }
 
-// --- MOCK DATA (Updated) ---
+// --- MOCK DATA ---
 const MOCK_DUPLICATE_DATA: DuplicateGroupData[] = [
   {
     mainProfile: { id: 1, fullName: 'Johnathan Doe', dateOfBirth: '1990-05-15', phone: '555-0101', email: 'j.doe@example.com' },
