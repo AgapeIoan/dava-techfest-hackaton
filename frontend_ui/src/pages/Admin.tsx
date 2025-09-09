@@ -1,189 +1,225 @@
-import React, { useState } from 'react'
-import { Box, Button, Grid, Typography, Paper, CircularProgress, Pagination, Stack, FormControlLabel, Checkbox  } from '@mui/material'
-import DuplicateGroup from '../components/DuplicateGroup'
 
-// Let's define the shape of our data with TypeScript Interfaces.
-// This helps prevent bugs by ensuring our data is always in the correct format.
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+  Box,
+  Button,
+  Typography,
+  Paper,
+  CircularProgress,
+  Pagination,
+  Stack,
+  FormControlLabel,
+  Checkbox,
+  TextField,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Grid,
+} from '@mui/material';
+import DuplicateGroup from '../components/DuplicateGroupCard';
+import { UploadFile as UploadFileIcon, Search as SearchIcon } from '@mui/icons-material';
+
+// --- TYPE DEFINITIONS ---
 export interface Profile {
-  id: number
-  name: string
-  email: string
-  address: string
+  id: number;
+  fullName: string;
+  dateOfBirth: string;
+  phone: string;
+  email: string;
+}
+
+export interface DuplicateProfile extends Profile {
+  matchReasons: string[]; // e.g., ["Similar Name", "Same Email"]
 }
 
 export interface DuplicateGroupData {
-  mainProfile: Profile
-  duplicates: Profile[]
+  mainProfile: Profile;
+  duplicates: DuplicateProfile[];
+  confidence: 'high' | 'medium' | 'low'; // For filtering
 }
 
-// MOCK DATA: In a real app, this would come from your backend after finding duplicates.
+// --- MOCK DATA ---
 const MOCK_DUPLICATE_DATA: DuplicateGroupData[] = [
   {
-    mainProfile: { id: 1, name: 'John Doe', email: 'j.doe@example.com', address: '2023-10-26' },
+    mainProfile: { id: 1, fullName: 'Johnathan Doe', dateOfBirth: '1990-05-15', phone: '555-0101', email: 'j.doe@example.com' },
     duplicates: [
-      { id: 101, name: 'Johnny Doe', email: 'j.doe@example.com', address: '2022-01-15' },
-      { id: 102, name: 'John D.', email: 'johndoe@work.com', address: '2023-05-20' },
+      { id: 101, fullName: 'Johnny Doe', dateOfBirth: '1990-05-15', phone: '555-0199', email: 'j.doe@example.com', matchReasons: ['Similar Name', 'Same Email', 'Same D.O.B.'] },
+      { id: 102, fullName: 'John D.', dateOfBirth: '1989-01-20', phone: '555-0101', email: 'johndoe@work.com', matchReasons: ['Similar Name', 'Same Phone'] },
     ],
+    confidence: 'high',
   },
   {
-    mainProfile: { id: 2, name: 'Jane Smith', email: 'jane.smith@mail.com', address: '2023-10-27' },
-    duplicates: [{ id: 201, name: 'Jane S.', email: 'jane.smith@mail.com', address: '2023-09-01' }],
+    mainProfile: { id: 2, fullName: 'Jane Samantha Smith', dateOfBirth: '1985-11-22', phone: '555-0202', email: 'jane.smith@mail.com' },
+    duplicates: [{ id: 201, fullName: 'Jane S.', dateOfBirth: '1985-11-22', phone: '555-0233', email: 'jane.smith@mail.com', matchReasons: ['Similar Name', 'Same Email', 'Same D.O.B.'] }],
+    confidence: 'high',
   },
-  // ... add 4 more groups to test pagination
-  { mainProfile: { id: 3, name: 'Peter Jones', email: 'p.jones@web.com', address: '2023-10-20' }, duplicates: [] },
-  { mainProfile: { id: 4, name: 'Sam Wilson', email: 'sam.w@example.com', address: '2023-10-19' }, duplicates: [] },
-  { mainProfile: { id: 5, name: 'Mary Jane', email: 'mj@daily.com', address: '2023-10-21' }, duplicates: [] },
-  { mainProfile: { id: 6, name: 'Bruce Wayne', email: 'bruce@wayne.com', address: '2023-10-22' }, duplicates: [] },
-]
+  {
+    mainProfile: { id: 3, fullName: 'Peter Jones', dateOfBirth: '1992-02-10', phone: '555-0303', email: 'p.jones@web.com' },
+    duplicates: [{ id: 301, fullName: 'Pete Jones', dateOfBirth: '1993-02-10', phone: '555-0304', email: 'peter.jones@web.com', matchReasons: ['Similar Name'] }],
+    confidence: 'medium',
+  },
+  {
+    mainProfile: { id: 4, fullName: 'Samuel Wilson', dateOfBirth: '1978-09-30', phone: '555-0404', email: 'sam.w@example.com' },
+    duplicates: [{ id: 401, fullName: 'Sam Wilson', dateOfBirth: '1978-09-30', phone: '555-0405', email: 'sam.wilson@example.net', matchReasons: ['Similar Name', 'Same D.O.B.'] }],
+    confidence: 'medium',
+  },
+  {
+    mainProfile: { id: 5, fullName: 'Maria Garcia', dateOfBirth: '2000-01-01', phone: '555-0505', email: 'maria.g@email.com' },
+    duplicates: [{ id: 501, fullName: 'Mary Garcia', dateOfBirth: '2000-01-02', phone: '555-0506', email: 'm.garcia@email.com', matchReasons: ['Similar Name'] }],
+    confidence: 'low',
+  },
+  {
+    mainProfile: { id: 6, fullName: 'Bruce Wayne', dateOfBirth: '1972-04-17', phone: '555-0606', email: 'bruce@wayne.com' },
+    duplicates: [],
+    confidence: 'low',
+  },
+];
 
-const PROFILES_PER_PAGE = 5
+const PROFILES_PER_PAGE = 5;
 
 export default function AdminPage() {
-  // --- STATE MANAGEMENT ---
-  // useState is a React "Hook". It lets us add a state variable to our component.
-  // The component will "re-render" (update on the screen) whenever this state changes.
+  const [allGroups, setAllGroups] = useState<DuplicateGroupData[]>([]);
+  const [filteredGroups, setFilteredGroups] = useState<DuplicateGroupData[]>([]);
+  const [selectedGroups, setSelectedGroups] = useState<Set<number>>(new Set());
+  const [isLoading, setIsLoading] = useState(false);
+  const [searchInitiated, setSearchInitiated] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [confidenceFilter, setConfidenceFilter] = useState('all');
 
-  // A list of all duplicate groups found. Initially empty.
-  const [duplicateGroups, setDuplicateGroups] = useState<DuplicateGroupData[]>([])
-  // Tracks which groups are selected for auto-merge. We store the main profile's ID.
-  const [selectedGroups, setSelectedGroups] = useState<Set<number>>(new Set())
-  // To show a loading spinner during actions.
-  const [isLoading, setIsLoading] = useState(false)
-  // For pagination.
-  const [currentPage, setCurrentPage] = useState(1)
-  // New state to track if a search has been initiated
-  const [searchPerformed, setSearchPerformed] = useState(false);
+  useEffect(() => {
+    let result = allGroups;
+    if (confidenceFilter !== 'all') {
+      result = result.filter(group => group.confidence === confidenceFilter);
+    }
+    if (searchQuery.trim() !== '') {
+      const lowercasedQuery = searchQuery.toLowerCase();
+      result = result.filter(group =>
+        group.mainProfile.fullName.toLowerCase().includes(lowercasedQuery) ||
+        group.mainProfile.email.toLowerCase().includes(lowercasedQuery) ||
+        group.duplicates.some(dup => dup.fullName.toLowerCase().includes(lowercasedQuery) || dup.email.toLowerCase().includes(lowercasedQuery))
+      );
+    }
+    setFilteredGroups(result);
+    setCurrentPage(1);
+  }, [allGroups, searchQuery, confidenceFilter]);
 
-  // --- PAGINATION LOGIC ---
-  const pageCount = Math.ceil(duplicateGroups.length / PROFILES_PER_PAGE);
-  const paginatedGroups = duplicateGroups.slice(
+  const pageCount = Math.ceil(filteredGroups.length / PROFILES_PER_PAGE);
+  const paginatedGroups = useMemo(() => filteredGroups.slice(
     (currentPage - 1) * PROFILES_PER_PAGE,
     currentPage * PROFILES_PER_PAGE
-  );
-
-
-  // --- ACTION HANDLERS ---
-  // These functions handle user clicks and update the state.
+  ), [filteredGroups, currentPage]);
 
   const handleFindDuplicates = () => {
-    setIsLoading(true)
-    console.log("Simulating finding duplicates...")
-    // Simulate a network request (e.g., to an AI service)
+    setIsLoading(true);
     setTimeout(() => {
-      setDuplicateGroups(MOCK_DUPLICATE_DATA)
-      setIsLoading(false)
-      setSearchPerformed(true); // Mark that a search has been performed
-    }, 1500) // wait 1.5 seconds
-  }
-
-  const handleAutoMerge = () => {
-    if (selectedGroups.size === 0) return // Do nothing if no groups are selected
-
-    setIsLoading(true)
-    console.log(`Simulating auto-merge for IDs: ${[...selectedGroups].join(', ')}`)
-    setTimeout(() => {
-      // Filter out the merged groups from the main list
-      const remainingGroups = duplicateGroups.filter(
-        (group) => !selectedGroups.has(group.mainProfile.id)
-      )
-      setDuplicateGroups(remainingGroups)
-      setSelectedGroups(new Set()) // Clear selection
-      setIsLoading(false)
-    }, 2000) // wait 2 seconds
-  }
-
-  const handleSelectionChange = (mainProfileId: number) => {
-    // Create a new Set to ensure React detects the state change
-    const newSelection = new Set(selectedGroups)
-    if (newSelection.has(mainProfileId)) {
-      newSelection.delete(mainProfileId)
-    } else {
-      newSelection.add(mainProfileId)
-    }
-    setSelectedGroups(newSelection)
-  }
-
-  const handlePageChange = (event: React.ChangeEvent<unknown>, value: number) => {
-    setCurrentPage(value);
+      setAllGroups(MOCK_DUPLICATE_DATA);
+      setSearchInitiated(true);
+      setIsLoading(false);
+    }, 1500);
   };
 
-  // Handler for the new "Select All" checkbox
-  const handleSelectAllOnPage = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const newSelection = new Set(selectedGroups);
-    const idsOnCurrentPage = paginatedGroups.map(g => g.mainProfile.id);
+  const handleAutoMerge = () => {
+    if (selectedGroups.size === 0) return;
+    setIsLoading(true);
+    setTimeout(() => {
+      setAllGroups(prev => prev.filter(group => !selectedGroups.has(group.mainProfile.id)));
+      setSelectedGroups(new Set());
+      setIsLoading(false);
+    }, 1000);
+  };
 
-    if (event.target.checked) {
-        // Add all IDs from the current page to the selection
-        idsOnCurrentPage.forEach(id => newSelection.add(id));
-    } else {
-        // Remove all IDs from the current page from the selection
-        idsOnCurrentPage.forEach(id => newSelection.delete(id));
-    }
+  const handleDismissGroup = (mainProfileId: number) => {
+    setAllGroups(prev => prev.filter(group => group.mainProfile.id !== mainProfileId));
+    setSelectedGroups(prev => {
+      const newSelection = new Set(prev);
+      newSelection.delete(mainProfileId);
+      return newSelection;
+    });
+  };
+
+  const handleSelectionChange = (mainProfileId: number) => {
+    const newSelection = new Set(selectedGroups);
+    if (newSelection.has(mainProfileId)) newSelection.delete(mainProfileId);
+    else newSelection.add(mainProfileId);
     setSelectedGroups(newSelection);
   };
 
-  // Logic to determine the state of the "Select All" checkbox
+  const handleSelectAllOnPage = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const newSelection = new Set(selectedGroups);
+    const idsOnCurrentPage = paginatedGroups.map(g => g.mainProfile.id);
+    if (event.target.checked) idsOnCurrentPage.forEach(id => newSelection.add(id));
+    else idsOnCurrentPage.forEach(id => newSelection.delete(id));
+    setSelectedGroups(newSelection);
+  };
+
   const idsOnCurrentPage = paginatedGroups.map(g => g.mainProfile.id);
   const selectedOnPageCount = idsOnCurrentPage.filter(id => selectedGroups.has(id)).length;
   const areAllOnPageSelected = idsOnCurrentPage.length > 0 && selectedOnPageCount === idsOnCurrentPage.length;
 
-  // --- RENDER LOGIC ---
-  // This is what the user sees. We use conditional rendering to show different UI
-  // based on the current state (e.g., show a spinner when loading).
   return (
-    <Box sx={{ padding: 3 }}>
+    <Box> {/* Removed padding here, handled by Layout now */}
       <Typography variant="h4" gutterBottom>
-        Find & Merge Duplicates
+        Admin Dashboard: Find & Merge Duplicates
       </Typography>
 
-      {/* Action Buttons */}
       <Paper sx={{ padding: 2, marginBottom: 3 }}>
-        <Typography variant="h6" sx={{ mb: 2 }}>
-          Find Duplicates
-        </Typography>
-        <Button variant="contained" onClick={() => alert('File import logic goes here!')}>
-          Import CSV
-        </Button>
-        <Button variant="contained" color="secondary" onClick={handleFindDuplicates} disabled={isLoading}>
-          Find Duplicates
-        </Button>
-        <Button
-          variant="outlined"
-          color="success"
-          onClick={handleAutoMerge}
-          disabled={isLoading || selectedGroups.size === 0}
-        >
-          Auto-Merge Selected ({selectedGroups.size})
-        </Button>
+        <Typography variant="h6" sx={{ mb: 2 }}>Start a New Search</Typography>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+          <Button variant="outlined" startIcon={<UploadFileIcon />} onClick={() => alert('File import logic goes here!')}>
+            Import CSV
+          </Button>
+          <Button variant="contained" startIcon={<SearchIcon />} onClick={handleFindDuplicates} disabled={isLoading}>
+            Find Duplicates in Database
+          </Button>
+        </Stack>
       </Paper>
 
-      {/* Results Section */}
       {isLoading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', padding: 5 }}>
-          <CircularProgress />
-        </Box>
-      ) : duplicateGroups.length === 0 ? (
-        <Typography>No duplicate profile was found. Click "Find Duplicates" to start.</Typography>
-      ) : (
+        <Box sx={{ display: 'flex', justifyContent: 'center', padding: 5 }}><CircularProgress /></Box>
+      ) : searchInitiated ? (
         <>
-          {paginatedGroups.map((group) => (
-            <DuplicateGroup
-              key={group.mainProfile.id}
-              groupData={group}
-              isSelected={selectedGroups.has(group.mainProfile.id)}
-              onSelectionChange={handleSelectionChange}
-            />
-          ))}
-          <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
-            <Pagination
-              count={pageCount}
-              page={currentPage}
-              onChange={handlePageChange}
-              color="primary"
-            />
-          </Box>
+          <Paper sx={{ padding: 2, mb: 3 }}>
+             <Grid container spacing={2} alignItems="center">
+                <Grid item xs={12} md={6}>
+                  <TextField fullWidth label="Search by Name or Email" variant="outlined" size="small" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                </Grid>
+                <Grid item xs={12} md={6}>
+                   <FormControl fullWidth size="small">
+                    <InputLabel>Confidence Level</InputLabel>
+                    <Select value={confidenceFilter} label="Confidence Level" onChange={(e) => setConfidenceFilter(e.target.value)}>
+                      <MenuItem value="all">All Levels</MenuItem>
+                      <MenuItem value="high">High Confidence</MenuItem>
+                      <MenuItem value="medium">Medium Confidence</MenuItem>
+                      <MenuItem value="low">Low Confidence</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+             </Grid>
+          </Paper>
+
+           <Paper sx={{ padding: 1, pl: 2, mb: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
+                <FormControlLabel control={<Checkbox checked={areAllOnPageSelected} onChange={handleSelectAllOnPage} />} label={`Select all on page (${selectedOnPageCount}/${idsOnCurrentPage.length})`} />
+                <Box sx={{ flexGrow: 1 }} />
+                <Button variant="contained" color="primary" onClick={handleAutoMerge} disabled={selectedGroups.size === 0} size="small">
+                    Auto-Merge Selected ({selectedGroups.size})
+                </Button>
+            </Paper>
+
+          <Typography variant="h6" sx={{ mb: 2 }}>Found {filteredGroups.length} potential duplicate groups</Typography>
+          {paginatedGroups.length > 0 ? (
+            paginatedGroups.map((group) => (
+              <DuplicateGroup key={group.mainProfile.id} groupData={group} isSelected={selectedGroups.has(group.mainProfile.id)} onSelectionChange={handleSelectionChange} onDismiss={handleDismissGroup} />
+            ))
+          ) : (
+            <Typography sx={{ mt: 3, textAlign: 'center' }}>No duplicate profiles match your current filters.</Typography>
+          )}
+          {pageCount > 1 && <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}><Pagination count={pageCount} page={currentPage} onChange={(_, v) => setCurrentPage(v)} color="primary" /></Box>}
         </>
+      ) : (
+         <Typography sx={{ mt: 3, textAlign: 'center', color: 'text.secondary' }}>Import a file or search the database to begin finding duplicates.</Typography>
       )}
     </Box>
-  )
+  );
 }

@@ -9,7 +9,7 @@ import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import DuplicateGroup from "../components/DuplicateGroup";
+import DuplicateGroup from "../components/DuplicateGroupCard";
 import useDupeStore from "../store/dupeStore";
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
