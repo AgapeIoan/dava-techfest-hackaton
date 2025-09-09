@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from .db import init_db
 from .routers import ingest, dedupe, links, export, patients, auth
 
@@ -14,5 +15,18 @@ def create_app() -> FastAPI:
 
 init_db()
 app = create_app()
+
+# Add CORS middleware to allow frontend requests
+origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 #uvicorn app.main:app --reload

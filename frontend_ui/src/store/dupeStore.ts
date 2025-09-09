@@ -125,7 +125,6 @@ type State = {
   first: string; last: string; loading: boolean; threshold: number;
   role: Role; roleSource: 'local' | 'server'; toast: string | null;
 
-  // ⬅️ NEW (auth)
   isAuthenticated: boolean;
   userName?: string;
   email?: string;
@@ -149,7 +148,7 @@ type State = {
   undoLastMerge: () => void;
 }
 
-// API DTOs & fetchers (nemodificate față de versiunea ta) …
+// API DTOs & fetchers
 type ApiMatchReq = { /* … */ record: any; threshold:number; top_k:number }
 type ApiMatchResp = { model_version:string; candidates: { id:string; match:number; reasons:string[] }[] }
 type ApiApproveReq = { /* … */ }
