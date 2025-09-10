@@ -260,13 +260,42 @@ export default function ConfirmMergeDialog({ open, groups, onApprove, onCancel }
                   <Grid item xs={12} md={5}>
                     <Typography variant="subtitle2" gutterBottom>Source Profiles</Typography>
                     <Stack spacing={1}>
-                      {[group.mainProfile, ...group.duplicates].map((p, idx) => (
-                        <Paper key={(p as any).recordId ?? (p as any).id ?? idx} variant="outlined" sx={{ p: 1 }}>
-                          <Typography variant="body2" fontWeight="bold">{(p as any).firstName} {(p as any).lastName} (# {(p as any).recordId ?? (p as any).id})</Typography>
-                          <Typography variant="caption" color="text.secondary" component="div">Email: {(p as any).email}</Typography>
-                          <Typography variant="caption" color="text.secondary" component="div">Phone: {(p as any).phoneNumber ?? (p as any).phone}</Typography>
-                        </Paper>
-                      ))}
+                      {[group.mainProfile, ...group.duplicates].map((p, idx) => {
+                        const pid = (p as any).recordId ?? (p as any).id ?? (p as any)?.other_patient?.record_id ?? idx;
+                        const fn = (p as any).firstName ?? (p as any)?.other_patient?.first_name ?? '';
+                        const ln = (p as any).lastName ?? (p as any)?.other_patient?.last_name ?? '';
+                        const email = (p as any).email ?? (p as any)?.other_patient?.email ?? '';
+                        const phone = (p as any).phoneNumber ?? (p as any).phone ?? (p as any)?.other_patient?.phone_number ?? '';
+                        const dob = (p as any).dateOfBirth ?? (p as any)?.other_patient?.date_of_birth ?? '';
+                        const ssn = (p as any).ssn ?? (p as any)?.other_patient?.ssn ?? '';
+                        const address = (p as any).address ?? (p as any)?.other_patient?.address ?? '';
+                        const city = (p as any).city ?? (p as any)?.other_patient?.city ?? '';
+                        const county = (p as any).county ?? (p as any)?.other_patient?.county ?? '';
+                        const gender = (p as any).gender ?? (p as any)?.other_patient?.gender ?? '';
+                        const detail = (
+                          <Box sx={{ maxWidth: 340 }}>
+                            <Typography variant="caption" color="text.secondary">Record #{String(pid)}</Typography>
+                            <Typography variant="body2"><b>Name:</b> {fn} {ln}</Typography>
+                            <Typography variant="body2"><b>DOB:</b> {dob || '—'}</Typography>
+                            <Typography variant="body2"><b>Email:</b> {email || '—'}</Typography>
+                            <Typography variant="body2"><b>Phone:</b> {String(phone || '—')}</Typography>
+                            <Typography variant="body2"><b>SSN:</b> {ssn || '—'}</Typography>
+                            <Typography variant="body2"><b>Address:</b> {address || '—'}</Typography>
+                            <Typography variant="body2"><b>City:</b> {city || '—'}</Typography>
+                            <Typography variant="body2"><b>County:</b> {county || '—'}</Typography>
+                            <Typography variant="body2"><b>Gender:</b> {gender || '—'}</Typography>
+                          </Box>
+                        );
+                        return (
+                          <Tooltip key={pid} title={detail} arrow placement="right">
+                            <Paper variant="outlined" sx={{ p: 1, cursor: 'help' }}>
+                              <Typography variant="body2" fontWeight="bold">{fn} {ln} (# {String(pid)})</Typography>
+                              <Typography variant="caption" color="text.secondary" component="div">Email: {email || '—'}</Typography>
+                              <Typography variant="caption" color="text.secondary" component="div">Phone: {String(phone || '—')}</Typography>
+                            </Paper>
+                          </Tooltip>
+                        );
+                      })}
                     </Stack>
                   </Grid>
 
