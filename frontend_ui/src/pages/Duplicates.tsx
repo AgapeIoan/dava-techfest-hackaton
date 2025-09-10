@@ -2,7 +2,7 @@ import Grid from '@mui/material/Grid'
 import {
   Paper, Stack, TextField, Button, Typography, Card, CardContent,
   Table, TableHead, TableRow, TableCell, TableBody,
-  Chip, Skeleton, Box, LinearProgress, CircularProgress, Tooltip
+  Chip, Skeleton, Box, LinearProgress, CircularProgress, Tooltip, Snackbar, Alert
 } from '@mui/material'
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
@@ -45,6 +45,9 @@ function MatchBar({ value }: { value: number }) {
 
 export default function DuplicatesPage() {
   const [addOpen, setAddOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [successOpen, setSuccessOpen] = useState(false);
+  const [editSuccessOpen, setEditSuccessOpen] = useState(false);
   const [newPatient, setNewPatient] = useState({
     firstName: '',
     lastName: '',
@@ -52,7 +55,8 @@ export default function DuplicatesPage() {
     dob: '',
     address: { street: '', number: '', city: '', county: '' },
     phone: '',
-    email: ''
+    email: '',
+    gender: ''
   });
 
   const handleAddClick = () => {
@@ -74,14 +78,58 @@ export default function DuplicatesPage() {
       dob: '',
       address: { street: '', number: '', city: '', county: '' },
       phone: '',
-      email: ''
+      email: '',
+      gender: ''
     });
   };
 
-  const handleAddSave = () => {
-    // Adaugă pacientul nou (ex: trimite la backend sau adaugă în store)
-    // addPatient(newPatient);
-    setAddOpen(false);
+  const handleAddSave = async () => {
+    const flatPatient = {
+        first_name: newPatient.firstName,
+        last_name: newPatient.lastName,
+        gender: newPatient.gender,
+        date_of_birth: newPatient.dob,
+        address: newPatient.address?.street ?? '',
+        city: newPatient.address?.city ?? '',
+        county: newPatient.address?.county ?? '',
+        ssn: newPatient.ssn,
+        phone_number: newPatient.phone,
+        email: newPatient.email,
+      };
+      const token = sessionStorage.getItem('token');
+      try {
+        console.log('POST /intake/add_or_check with fields:');
+        Object.entries(flatPatient).forEach(([key, value]) => {
+          console.log(`  ${key}:`, value);
+        });
+        const response = await fetch('http://127.0.0.1:8000/intake/add_or_check', {
+          method: 'POST',
+          body: JSON.stringify(flatPatient),
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+        });
+        if (!response.ok) {
+          throw new Error('Failed to add patient');
+        }
+        const data = await response.json();
+        console.log('Backend response:', data);
+        if (data && typeof data === 'object' && data.created === false) {
+          // Show error: user already exists
+          setErrorOpen(true);
+          setAddOpen(false);
+          return;
+        }
+        if (data && typeof data === 'object' && data.created === true) {
+          setSuccessOpen(true);
+        }
+        setAddOpen(false);
+      } catch (error) {
+        console.error('Error adding patient:', error);
+        // Optionally show error to user
+        setAddOpen(false);
+      }
   };
 
   const { first, last, setFirst, setLast, loading, patient, dupes, findDuplicates, isAuthenticated, role, search } = useDupeStore()
@@ -119,9 +167,46 @@ export default function DuplicatesPage() {
     setEditPatient(null);
   };
 
-  const handleEditSave = () => {
-    // Salvează modificările (ex: trimite la backend)
-    handlePatientSave(editPatient!);
+  const handleEditSave = async () => {
+    if (!editPatient) return;
+    const token = sessionStorage.getItem('token');
+    try {
+      // Flatten the patient object to match backend model
+      const flatPatient = {
+        record_id: editPatient.id,
+        first_name: editPatient.firstName,
+        last_name: editPatient.lastName,
+        ssn: editPatient.ssn,
+        date_of_birth: editPatient.dob,
+        phone_number: editPatient.phone,
+        email: editPatient.email,
+        address: editPatient.address?.street ?? '',
+        city: editPatient.address?.city ?? '',
+        county: editPatient.address?.county ?? '',
+        number: editPatient.address?.number ?? '',
+        // Add other fields as needed, e.g. gender, cluster_id, etc.
+      };
+      console.log('PATCH /patients/' + editPatient.id + ' with fields:');
+      Object.entries(flatPatient).forEach(([key, value]) => {
+        console.log(`  ${key}:`, value);
+      });
+      const response = await fetch(`http://127.0.0.1:8000/patients/${editPatient.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(flatPatient),
+      });
+      if (!response.ok) {
+        throw new Error('Failed to update patient');
+      }
+      setEditSuccessOpen(true);
+      // Optionally update local state/store here if needed
+    } catch (error) {
+      console.error('Error updating patient:', error);
+      // Optionally show error to user
+    }
     setEditOpen(false);
   };
 
@@ -282,6 +367,27 @@ export default function DuplicatesPage() {
           </Button>
         </Paper>
       )}
+
+      {/* Error Snackbar */}
+      <Snackbar open={errorOpen} autoHideDuration={5000} onClose={() => setErrorOpen(false)} anchorOrigin={{ vertical: 'top', horizontal: 'center' }}>
+        <Alert onClose={() => setErrorOpen(false)} severity="error" sx={{ width: '100%' }}>
+          Patient already exists!
+        </Alert>
+      </Snackbar>
+
+      {/* Success Snackbar */}
+      <Snackbar open={successOpen} autoHideDuration={5000} onClose={() => setSuccessOpen(false)} anchorOrigin={{ vertical: 'top', horizontal: 'center' }}>
+        <Alert onClose={() => setSuccessOpen(false)} severity="success" sx={{ width: '100%' }}>
+          Patient was successfully added!
+        </Alert>
+      </Snackbar>
+
+      {/* Edit Success Snackbar */}
+      <Snackbar open={editSuccessOpen} autoHideDuration={5000} onClose={() => setEditSuccessOpen(false)} anchorOrigin={{ vertical: 'top', horizontal: 'center' }}>
+        <Alert onClose={() => setEditSuccessOpen(false)} severity="success" sx={{ width: '100%' }}>
+          Patient was successfully updated!
+        </Alert>
+      </Snackbar>
 
       {/* Dialog pentru editare pacient */}
       <Dialog open={editOpen} onClose={handleEditClose} maxWidth="sm" fullWidth>
