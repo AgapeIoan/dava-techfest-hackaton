@@ -3,7 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions, Button, Accordion, AccordionSummary,
-  AccordionDetails, Typography, Grid, Chip, Box, Stack, Divider, Paper, Tooltip, IconButton
+  AccordionDetails, Typography, Grid, Chip, Box, Stack, Divider, Paper, Tooltip, IconButton, Alert,
+  Select, MenuItem
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import CloseIcon from '@mui/icons-material/Close';
@@ -67,6 +68,10 @@ export default function ConfirmMergeDialog({ open, groups, onApprove, onCancel }
   const [loading, setLoading] = useState<Record<string, boolean>>({});
   const [errors, setErrors] = useState<Record<string, string | null>>({});
   const [submitting, setSubmitting] = useState(false);
+  const [showLog, setShowLog] = useState<Record<string, boolean>>({});
+  const [manualChoices, setManualChoices] = useState<Record<string, Record<string, string>>>({});
+
+  const snakeToCamel = (s: string) => s.replace(/_([a-z])/g, (_: any, c: string) => c.toUpperCase());
 
   useEffect(() => {
     // When the modal opens, populate the pending list from props and fetch AI suggestions
@@ -132,12 +137,20 @@ export default function ConfirmMergeDialog({ open, groups, onApprove, onCancel }
     for (const g of pendingGroups) {
       const gid = String((g.mainProfile as any).recordId ?? (g.mainProfile as any).id);
       const ai = suggestions[gid];
-      if (!ai || ai.human_review_required) {
-        // skip; stays in dialog for manual review
-        continue;
-      }
+      if (!ai) continue;
       try {
-        const goldenUi = goldenToUi(ai.suggested_golden_record);
+        // Merge AI suggestion with any manual choices for review fields
+        const goldenUiBase = goldenToUi(ai.suggested_golden_record);
+        const overrides = manualChoices[gid] || {};
+        const goldenUi = { ...goldenUiBase, ...overrides } as Partial<Profile>;
+        // If AI requires review and not all fields have a manual choice, skip this group
+        const reviewFields = (ai.conflicts_resolved || [])
+          .filter(c => c.chosen_value === 'NEEDS_HUMAN_REVIEW')
+          .map(c => snakeToCamel(c.field_name));
+        const unresolved = reviewFields.filter(f => (overrides[f] ?? '') === '');
+        if (unresolved.length > 0) {
+          continue;
+        }
         const updates = buildUpdates(g.mainProfile, goldenUi);
         const masterId = (g.mainProfile as any).recordId ?? (g.mainProfile as any).id;
         const duplicateIds = (g.duplicates || [])
@@ -175,7 +188,13 @@ export default function ConfirmMergeDialog({ open, groups, onApprove, onCancel }
   const readyToMergeCount = pendingGroups.filter(pg => {
     const gid = String((pg.mainProfile as any).recordId ?? (pg.mainProfile as any).id);
     const ai = suggestions[gid];
-    return !!ai && ai.human_review_required === false && !loading[gid] && !errors[gid];
+    if (!ai || loading[gid] || errors[gid]) return false;
+    const reviewFields = (ai.conflicts_resolved || [])
+      .filter(c => c.chosen_value === 'NEEDS_HUMAN_REVIEW')
+      .map(c => snakeToCamel(c.field_name));
+    if (reviewFields.length === 0) return true;
+    const overrides = manualChoices[gid] || {};
+    return reviewFields.every(f => (overrides[f] ?? '') !== '');
   }).length;
 
   return (
@@ -193,20 +212,31 @@ export default function ConfirmMergeDialog({ open, groups, onApprove, onCancel }
           const gid = String((group.mainProfile as any).recordId ?? (group.mainProfile as any).id ?? index);
           const ai = suggestions[gid] || null;
           const mergedProfile = ai?.suggested_golden_record ? goldenToUi(ai.suggested_golden_record) : ({} as Partial<Profile>);
-          // map snake_case field_name -> camelCase
-          const snakeToCamel = (s: string) => s.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
           const resByField: Record<string, { chosen_value:any; justification?:string }> = {};
           (ai?.conflicts_resolved || []).forEach(c => {
             const camel = snakeToCamel(c.field_name);
             resByField[camel] = { chosen_value: c.chosen_value, justification: c.justification };
           });
-          // helper: identical chip if all values same across sources
-          const uniqueValuesFor = (camelKey: string) => {
-            const vals: any[] = [];
-            const push = (v:any) => { if (v !== undefined && v !== null && !vals.includes(v)) vals.push(v); };
-            push((group.mainProfile as any)[camelKey]);
-            (group.duplicates || []).forEach((d:any)=> push(d[camelKey] ?? d?.other_patient?.[camelKey]));
-            return vals;
+          // helper: options with provenance for review selection
+          const optionsFor = (camelKey: string) => {
+            type Opt = { value: string; sourceId: string; sourceTag: 'main' | 'dup' };
+            const out: Opt[] = [];
+            const add = (value: any, sourceId: any, sourceTag: 'main' | 'dup') => {
+              const v = value == null ? '' : String(value);
+              const id = sourceId == null ? '' : String(sourceId);
+              if (!v) return;
+              // de-dup by value string
+              if (out.some(o => o.value === v)) return;
+              out.push({ value: v, sourceId: id, sourceTag });
+            };
+            const main = group.mainProfile as any;
+            add(main[camelKey], (main.recordId ?? main.id), 'main');
+            (group.duplicates || []).forEach((d:any)=> {
+              const dv = d[camelKey] ?? d?.other_patient?.[camelKey];
+              const did = d.recordId ?? d?.other_patient?.record_id ?? d.id;
+              add(dv, did, 'dup');
+            });
+            return out;
           };
           return (
             <Accordion key={gid} defaultExpanded={index === 0}>
@@ -254,13 +284,17 @@ export default function ConfirmMergeDialog({ open, groups, onApprove, onCancel }
                          <Stack spacing={1.5}>
                            {Object.entries(mergedProfile).map(([key, value]) => {
                              const res = resByField[key];
-                             const uniq = uniqueValuesFor(key);
+                             const opts = optionsFor(key);
+                             const gidChoices = manualChoices[gid] || {};
+                             const overrideVal = gidChoices[key];
+                             const needsReview = res?.chosen_value === 'NEEDS_HUMAN_REVIEW';
+                             const displayVal = String((overrideVal ?? value) ?? '');
                              return (
-                               <Box key={String(key)} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                               <Box key={String(key)} sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
                                  <Typography variant="body2" sx={{ minWidth: 120, fontWeight: 500, textTransform: 'capitalize' }}>
                                    {key.replace(/([A-Z])/g, ' $1')}:
                                  </Typography>
-                                 <Typography variant="body2" sx={{ flexGrow: 1 }}>{String(value ?? '')}</Typography>
+                                 <Typography variant="body2" sx={{ flexGrow: 1, minWidth: 200 }}>{displayVal}</Typography>
                                  {res ? (
                                    res.chosen_value === 'NEEDS_HUMAN_REVIEW' ? (
                                      <Tooltip title={res.justification || 'Needs human review'}>
@@ -272,28 +306,89 @@ export default function ConfirmMergeDialog({ open, groups, onApprove, onCancel }
                                      </Tooltip>
                                    )
                                  ) : (
-                                   uniq.length <= 1 ? (
+                                   opts.length <= 1 ? (
                                      <Tooltip title="Identical across sources">
                                        <Chip label="Same" size="small" variant="outlined" />
                                      </Tooltip>
                                    ) : null
                                  )}
+                                 {needsReview && (
+                                   <Select
+                                     size="small"
+                                     value={overrideVal ?? ''}
+                                     displayEmpty
+                                     onChange={(e)=> setManualChoices(prev => ({
+                                       ...prev,
+                                       [gid]: { ...(prev[gid]||{}), [key]: String(e.target.value) }
+                                     }))}
+                                     sx={{ minWidth: 160 }}
+                                   >
+                                     <MenuItem value="" disabled>Pick value…</MenuItem>
+                                     {opts.map((opt, i) => (
+                                       <MenuItem key={i} value={opt.value}>{`${opt.value} — from #${opt.sourceId}${opt.sourceTag==='main' ? ' (main)' : ''}`}</MenuItem>
+                                     ))}
+                                   </Select>
+                                 )}
                                </Box>
                              );
                            })}
                          </Stack>
-                         <Divider sx={{ my: 2 }} />
-                         <Typography variant="subtitle2" gutterBottom>AI Notes</Typography>
-                         <Stack spacing={0.5}>
-                           {(ai.processing_log || []).slice(0, 6).map((line, i) => (
-                             <Typography key={i} variant="caption" color="text.secondary">{line}</Typography>
-                           ))}
-                         </Stack>
-                         {ai.human_review_required && (
-                           <Typography variant="body2" color="warning.main" sx={{ mt: 1 }}>
-                             Some fields require human review.
-                           </Typography>
-                         )}
+                         {/* Summary / AI Notes (collapsed by default) */}
+                         {(() => {
+                           const reviewFields = (ai.conflicts_resolved || []).filter(c => c.chosen_value === 'NEEDS_HUMAN_REVIEW').map(c => c.field_name);
+                           const hasError = (ai.processing_log || []).some((line:string) => /ERROR|PROCESS_HALTED/i.test(line));
+                           const gidOpen = !!showLog[gid];
+                           if (hasError) {
+                             return (
+                               <>
+                                 <Box sx={{ mt: 2 }}>
+                                   <Alert severity="error" sx={{ py: 0.5 }}
+                                     action={<Button size="small" onClick={() => setShowLog(prev => ({...prev, [gid]: !gidOpen}))}>{gidOpen ? 'Hide details' : 'Show details'}</Button>}>
+                                     AI encountered an error during analysis. Manual review recommended.
+                                   </Alert>
+                                 </Box>
+                                 {gidOpen && (
+                                   <>
+                                     <Divider sx={{ my: 1 }} />
+                                     <Typography variant="subtitle2" gutterBottom>AI Notes</Typography>
+                                     <Stack spacing={0.5}>
+                                       {(ai.processing_log || []).map((line, i) => (
+                                         <Typography key={i} variant="caption" color="text.secondary">{line}</Typography>
+                                       ))}
+                                     </Stack>
+                                   </>
+                                 )}
+                               </>
+                             );
+                           }
+                           if (reviewFields.length > 0) {
+                             return (
+                               <Box sx={{ mt: 2 }}>
+                                 <Alert severity="warning" sx={{ py: 0.5 }}
+                                   action={<Button size="small" onClick={() => setShowLog(prev => ({...prev, [gid]: !gidOpen}))}>{gidOpen ? 'Hide details' : 'Show details'}</Button>}>
+                                   Some fields require human review: {reviewFields.join(', ')}
+                                 </Alert>
+                                 {gidOpen && (
+                                   <>
+                                     <Divider sx={{ my: 1 }} />
+                                     <Typography variant="subtitle2" gutterBottom>AI Notes</Typography>
+                                     <Stack spacing={0.5}>
+                                       {(ai.processing_log || []).map((line, i) => (
+                                         <Typography key={i} variant="caption" color="text.secondary">{line}</Typography>
+                                       ))}
+                                     </Stack>
+                                   </>
+                                 )}
+                               </Box>
+                             );
+                           }
+                           // All good – everything auto-resolved; keep it minimal
+                           return (
+                             <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                               All conflicts auto‑resolved.
+                             </Typography>
+                           );
+                         })()}
                        </>
                      )}
                   </Grid>
