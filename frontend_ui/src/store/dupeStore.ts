@@ -422,7 +422,8 @@ const useDupeStore = create<State>()((set, get) => ({
   toggleSelect: (id: string, val: boolean) => set(s => ({ selected: { ...s.selected, [id]: val } })),
   startMerge() { /* will be set from UI with selected rows */ },
   async autoMergeSelected() {
-    const { patient, dupes } = get();
+    const { patient, dupes, role } = get();
+    if (role !== 'admin') { set({ toast: 'Only admins can auto-merge.' }); return; }
     const token = sessionStorage.getItem('token');
     if (!patient) { set({ toast: 'No keeper selected' }); return; }
     const selectedIds = Object.entries(get().selected).filter(([,v])=>!!v).map(([k])=>k);

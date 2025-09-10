@@ -322,15 +322,17 @@ export default function DuplicatesPage() {
             elevation={3}
           >
         {/* Eliminat titlul deasupra tabelului */}
-            <Stack direction="row" spacing={1} sx={{ mb: 1 }}>
-              <Button variant="contained" color="secondary" disabled={!Object.values(selected||{}).some(Boolean) || loading}
-                      onClick={async ()=>{
-                        const res = await autoMergeSelected();
-                        if (res && res.stopForReview) navigate('/merge');
-                      }}>
-                Auto-Merge Selected
-              </Button>
-            </Stack>
+            {role === 'admin' && (
+              <Stack direction="row" spacing={1} sx={{ mb: 1 }}>
+                <Button variant="contained" color="secondary" disabled={!Object.values(selected||{}).some(Boolean) || loading}
+                        onClick={async ()=>{
+                          const res = await autoMergeSelected();
+                          if (res && res.stopForReview) navigate('/merge');
+                        }}>
+                  Auto-Merge Selected
+                </Button>
+              </Stack>
+            )}
             <Table size="small" sx={{ background: '#fff' }}>
               <TableHead>
                 <TableRow>
