@@ -16,6 +16,10 @@ def main():
             "first_name": "Jon", "last_name": "Smith", "date_of_birth": "05/15/1980",
             "ssn": "sintetic-ssn-multi", "email": "jonsmith80@email.com"
         },
+        {
+            "first_name": "Jonathan", "last_name": "Smth", "date_of_birth": "1980-05-15",
+            "ssn": "sintetic-ssn-multi", "email": "jonathan.smith@corporte.com"
+        },
     ]
 
     final_record = resolve_multiple_duplicates(patient_cluster)

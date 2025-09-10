@@ -101,3 +101,19 @@ class MergeResponse(BaseModel):
     updated_links: int
     updated_clusters: int
     master_after: Optional["PatientOut"] = None
+
+class PatientRecordInput(PatientOut):
+    pass
+
+class AIFieldResolution(BaseModel):
+    field_name: str
+    value_A: Any
+    value_B: Any
+    chosen_value: Any
+    justification: str
+
+class AIMergeSuggestionResponse(BaseModel):
+    suggested_golden_record: PatientOut
+    human_review_required: bool
+    conflicts_resolved: List[AIFieldResolution]
+    processing_log: List[str]

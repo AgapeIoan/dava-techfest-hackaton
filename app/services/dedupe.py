@@ -5,6 +5,8 @@ from collections import Counter, defaultdict
 import pandas as pd
 import networkx as nx
 from rapidfuzz import fuzz
+from typing import List
+from .ai_logic.orchestrator import get_ai_merge_suggestion as get_ai_suggestion
 
 # -----------------------------
 # Config (rule-based only)
@@ -322,6 +324,15 @@ def main():
 
     print("Done!")
     print(f"- Found clusters: {len(clusters)}")
+
+def suggest_ai_merge(records: List[dict]) -> dict:
+    """
+    Wrapper de serviciu care primeste o lista de inregistrari dintr-un cluster
+    si returneaza o sugestie de fuziune generata de AI.
+    """
+    # Aici se poate adauga logica suplimentara, ex: logging in DB
+    suggestion = get_ai_suggestion(records)
+    return suggestion
 
 if __name__ == "__main__":
     main()
