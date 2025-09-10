@@ -15,7 +15,7 @@ import {
   Divider,
   Button,
 } from '@mui/material';
-import { ExpandMore as ExpandMoreIcon, Block as NotDuplicateIcon } from '@mui/icons-material';
+import { ExpandMore as ExpandMoreIcon } from '@mui/icons-material';
 import type { DuplicateGroupData } from '../pages/Admin';
 
 // Renamed props for clarity
@@ -62,7 +62,7 @@ export default function DuplicateGroupCard({
       >
         <Checkbox
           checked={isSelected}
-          onChange={() => onSelectionChange(mainProfile.id)}
+          onChange={() => onSelectionChange(mainProfile.recordId)}
           inputProps={{ 'aria-label': `Select group for ${mainProfile.firstName || mainProfile.lastName}` }}
         />
         <Box sx={{ flexGrow: 1, ml: 1 }}>
@@ -90,11 +90,6 @@ export default function DuplicateGroupCard({
               Manual Merge
             </Button>
           )}
-          <Tooltip title="Mark as not a duplicate and remove from list">
-            <IconButton onClick={() => onDismiss(mainProfile.id)} size="small">
-              <NotDuplicateIcon />
-            </IconButton>
-          </Tooltip>
           <Tooltip title={isExpanded ? 'Collapse' : 'Expand'}>
             <IconButton
               onClick={() => setIsExpanded(!isExpanded)}
