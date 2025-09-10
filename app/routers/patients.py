@@ -32,6 +32,7 @@ def _patient_to_out(p: Patient, cluster_id: Optional[str]) -> PatientOut:
     )
 
 
+
 @router.get("/search", response_model=List[PatientWithDuplicates], dependencies=[Depends(get_current_user)])
 def search_by_name(
         name: str = Query(..., description="Searched name (partial or full; e.g. 'Ion Pop')"),
@@ -176,17 +177,17 @@ def search_by_name(
 
     return results
 
-
 @router.get("/matches", response_model=List[PatientWithDuplicates], tags=["patients"],
             dependencies=[Depends(get_current_user)])
 def list_all_matches_grouped(
         run_id: Optional[int] = Query(None, description="If omitted, latest run will be used"),
-        group_by_cluster: bool = Query(True, description="If true, one entry per cluster; else per record"),
         limit_groups: int = Query(200, description="Max number of groups to return"),
         session: Session = Depends(get_session),
 ):
     run_id = resolve_run_id(session, run_id)
-    links = session.exec(
+
+    # 1) ia toate link-urile 'match' pentru run-ul curent
+    links: List[Link] = session.exec(
         select(Link)
         .where(Link.run_id == run_id, Link.decision == "match")
         .order_by(Link.score.desc())
@@ -194,85 +195,134 @@ def list_all_matches_grouped(
     if not links:
         return []
 
-    all_rids: set[str] = set()
+    # 2) construiește mulțimea tuturor record_id-urilor implicate în link-uri
+    all_rids: Set[str] = set()
     for l in links:
         all_rids.add(l.record_id1)
         all_rids.add(l.record_id2)
 
-    pats = session.exec(
+    # 3) încarcă doar pacienții existenți/neșterși dintre acele id-uri
+    pats: List[Patient] = session.exec(
         select(Patient).where(Patient.record_id.in_(list(all_rids)), Patient.is_deleted == 0)
     ).all()
+    if not pats:
+        return []
+
     rid_to_pat: Dict[str, Patient] = {p.record_id: p for p in pats}
 
-    assigns = session.exec(
-        select(ClusterAssignment).where(
-            ClusterAssignment.run_id == run_id,
-            ClusterAssignment.record_id.in_(list(all_rids))
-        )
-    ).all()
-    rid_to_cluster: Dict[str, str] = {a.record_id: a.patient_id for a in assigns}
+    # 4) graf neorientat din link-urile 'match' (doar noduri cu pacienți valizi)
+    graph: Dict[str, Set[str]] = {}
+    for l in links:
+        a, b = l.record_id1, l.record_id2
+        if a not in rid_to_pat or b not in rid_to_pat:
+            continue
+        graph.setdefault(a, set()).add(b)
+        graph.setdefault(b, set()).add(a)
 
-    groups: Dict[str, List[str]] = {}
-    for rid in all_rids:
-        key = rid_to_cluster.get(rid) if group_by_cluster else f"RID::{rid}"
-        key = key or f"RID::{rid}"
-        groups.setdefault(key, []).append(rid)
+    if not graph:
+        return []
 
-    results: List[PatientWithDuplicates] = []
+    # 5) componente conexe prin DFS/BFS
+    visited: Set[str] = set()
+    components: List[List[str]] = []
+
+    for start in graph.keys():
+        if start in visited:
+            continue
+        stack = [start]
+        visited.add(start)
+        comp: List[str] = []
+        while stack:
+            cur = stack.pop()
+            comp.append(cur)
+            for nb in graph.get(cur, ()):
+                if nb not in visited:
+                    visited.add(nb)
+                    stack.append(nb)
+        if comp:
+            components.append(comp)
+
+    if not components:
+        return []
+
+    # 6) utilitare
+    def _to_int(rid: str) -> int:
+        # Dacă ai garanția că toate sunt numerice, e suficient int(rid)
+        # try/except doar ca să nu pice endpoint-ul pe un id exotic
+        try:
+            return int(rid)
+        except Exception:
+            # pune non-numericele după cele numerice
+            return 2**63 - 1
 
     def _representative(rids: List[str]) -> str:
-        return sorted(rids)[0]
+        # minim numeric; dacă toate sunt numerice, este strict după int
+        return min(rids, key=_to_int)
 
-    links_by_rid: Dict[str, List[Link]] = {}
-    for l in links:
-        links_by_rid.setdefault(l.record_id1, []).append(l)
-        links_by_rid.setdefault(l.record_id2, []).append(l)
-
-    # evită inversiunile (A-B și B-A)
-    seen_pairs: Set[Tuple[str, str]] = set()
-    def _canon_pair(a: str, b: str) -> Tuple[str, str]:
+    # 7) indexează link-urile pentru lookup rapid (păstrăm cel mai bun link pe pereche, după scor)
+    #    Normalizăm perechea în formă canonică (a <= b)
+    def _canon(a: str, b: str) -> Tuple[str, str]:
         return (a, b) if a <= b else (b, a)
 
-    for group_key, member_ids in sorted(groups.items()):
-        rep_rid = _representative(member_ids)
-        rep_patient = _patient_to_out(rid_to_pat.get(rep_rid), rid_to_cluster.get(rep_rid))
+    best_link_by_pair: Dict[Tuple[str, str], Link] = {}
+    for l in links:
+        a, b = l.record_id1, l.record_id2
+        if a not in rid_to_pat or b not in rid_to_pat:
+            continue
+        key = _canon(a, b)
+        keep = best_link_by_pair.get(key)
+        if (keep is None) or ((l.score or 0.0) > (keep.score or 0.0)):
+            best_link_by_pair[key] = l
 
-        # best link pe „other”, după scor
-        best_by_other: Dict[str, Link] = {}
-        for rid in member_ids:
-            for l in links_by_rid.get(rid, []):
-                other = l.record_id2 if l.record_id1 == rid else l.record_id1
-                cur = best_by_other.get(other)
-                if (cur is None) or ((l.score or 0.0) > (cur.score or 0.0)):
-                    best_by_other[other] = l
+    # 8) compune răspunsul: câte un entry per componentă, reprezentant = min numeric
+    results: List[PatientWithDuplicates] = []
+
+    # ordonează componentele după reprezentant (numeric crescător), pentru stabilitate
+    components_sorted = sorted(components, key=lambda comp: _to_int(_representative(comp)))
+
+    for comp in components_sorted:
+        rep_rid = _representative(comp)
+        rep_pat = rid_to_pat.get(rep_rid)
+        if not rep_pat:
+            continue
+
+        # patient (reprezentantul componentei)
+        patient_out = _patient_to_out(rep_pat, cluster_id=None)  # fără ClusterAssignment
+
+        # duplicates = ceilalți din componentă, ordonați numeric
+        others_sorted = sorted((rid for rid in comp if rid != rep_rid), key=_to_int)
 
         dups: List[DuplicateCandidate] = []
-        for other_id, l in sorted(best_by_other.items(), key=lambda kv: -(kv[1].score or 0.0)):
-            if other_id == rep_rid:
+        for other_id in others_sorted:
+            # ia cel mai bun link între rep și other
+            key = _canon(rep_rid, other_id)
+            lnk = best_link_by_pair.get(key)
+            if not lnk:
+                # componenta e conexă, dar foarte rar poate lipsi perechea directă;
+                # sare peste, deși în practică ar trebui să existe măcar un link
                 continue
-            pair_key = _canon_pair(rep_rid, other_id)
-            if pair_key in seen_pairs:
-                continue
-            seen_pairs.add(pair_key)
 
-            other_p = rid_to_pat.get(other_id)
+            op = rid_to_pat.get(other_id)
+            op_out = _patient_to_out(op, cluster_id=None) if op else None
+
             dups.append(DuplicateCandidate(
                 other_record_id=other_id,
                 decision="match",
-                score=l.score or 0.0,
-                s_name=l.s_name, s_dob=l.s_dob, s_email=l.s_email, s_phone=l.s_phone,
-                s_address=l.s_address, s_gender=l.s_gender, s_ssn_hard_match=l.s_ssn_hard_match,
-                reason=l.reason,
-                other_patient=_patient_to_out(other_p, rid_to_cluster.get(other_id)) if other_p else None,
+                score=lnk.score or 0.0,
+                s_name=lnk.s_name, s_dob=lnk.s_dob, s_email=lnk.s_email, s_phone=lnk.s_phone,
+                s_address=lnk.s_address, s_gender=lnk.s_gender, s_ssn_hard_match=lnk.s_ssn_hard_match,
+                reason=lnk.reason,
+                other_patient=op_out
             ))
 
+        # Dacă o componentă are un singur nod (fără dubluri), nu o include
         if not dups:
             continue
 
-        results.append(PatientWithDuplicates(patient=rep_patient, duplicates=dups))
-
+        results.append(PatientWithDuplicates(patient=patient_out, duplicates=dups))
 
     return results
+
 
 
 
@@ -657,4 +707,3 @@ def update_patient(
     ).first()
 
     return _patient_to_out(p, cluster.patient_id if cluster else None)
- 
