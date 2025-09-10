@@ -24,8 +24,8 @@ EXPECTED = [
 def ingest_patients_csv(
     file: UploadFile = File(...),
     session: Session = Depends(get_session),
-    restore_deleted: bool = Query(True, description="If a soft-deleted record reappears, restore it"),
-    reject_merged: bool = Query(True, description="If record was merged into another, reject updates (409)"),
+    restore_deleted: bool | None = Query(True, description="If a soft-deleted record reappears, restore it"),
+    reject_merged: bool | None = Query(True, description="If record was merged into another, reject updates (409)"),
     source: str | None = Query(None, description="Optional logical source label"),
 ):
     if not file.filename.endswith(".csv"):
@@ -128,14 +128,14 @@ def ingest_patients_csv(
 
         session.commit()
 
-    except HTTPException:
+    except HTTPException as e:
         session.rollback()
-        raise
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
     except IntegrityError as e:
         session.rollback()
         raise HTTPException(status_code=409, detail=f"Integrity error: {e.orig}")  # e.g. duplicate key
-    except Exception as e:
-        session.rollback()
-        raise HTTPException(status_code=500, detail=f"Ingest error: {e}")
+    # except Exception as e:
+    #     session.rollback()
+    #     raise HTTPException(status_code=500, detail=f"Ingest error: {e}")
 
     return IngestResponse(inserted=inserted, updated=updated)

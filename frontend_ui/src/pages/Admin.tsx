@@ -295,14 +295,15 @@ export default function AdminPage() {
       const formData = new FormData();
       // The key 'file' must match what your backend endpoint expects
       formData.append('file', selectedFile);
-
       // --- Get the token ---
       const token = getAuthToken();
+      console.log(token)
       if (!token) {
         setToast('Authentication error. Please log in again.');
         setIsUploading(false);
         return;
       }
+
 
       try {
         const response = await fetch(`${API_BASE}/ingest/patients-csv`, {
