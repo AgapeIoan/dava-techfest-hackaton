@@ -272,8 +272,16 @@ export default function ConfirmMergeDialog({ open, groups, onApprove, onCancel }
                         const city = (p as any).city ?? (p as any)?.other_patient?.city ?? '';
                         const county = (p as any).county ?? (p as any)?.other_patient?.county ?? '';
                         const gender = (p as any).gender ?? (p as any)?.other_patient?.gender ?? '';
+                        const srcUi: any = { firstName: fn, lastName: ln, dateOfBirth: dob, email, phoneNumber: String(phone||''), ssn, address, city, county, gender };
+                        const cmpFields = ['firstName','lastName','dateOfBirth','email','phoneNumber','ssn','address','city','county','gender'];
+                        const diffs = cmpFields.map((f) => {
+                          const sv = String(srcUi[f] ?? '');
+                          const mv = String((mergedProfile as any)?.[f] ?? '');
+                          if ((sv || mv) && sv !== mv) return { field: f, sv, mv };
+                          return null;
+                        }).filter(Boolean) as { field:string; sv:string; mv:string }[];
                         const detail = (
-                          <Box sx={{ maxWidth: 340 }}>
+                          <Box sx={{ maxWidth: 360 }}>
                             <Typography variant="caption" color="text.secondary">Record #{String(pid)}</Typography>
                             <Typography variant="body2"><b>Name:</b> {fn} {ln}</Typography>
                             <Typography variant="body2"><b>DOB:</b> {dob || '—'}</Typography>
@@ -284,6 +292,19 @@ export default function ConfirmMergeDialog({ open, groups, onApprove, onCancel }
                             <Typography variant="body2"><b>City:</b> {city || '—'}</Typography>
                             <Typography variant="body2"><b>County:</b> {county || '—'}</Typography>
                             <Typography variant="body2"><b>Gender:</b> {gender || '—'}</Typography>
+                            <Divider sx={{ my: 1 }} />
+                            <Typography variant="caption" sx={{ fontWeight: 700, display: 'block', mb: .5 }}>Compare with Suggested</Typography>
+                            {diffs.length ? (
+                              <Box>
+                                {diffs.map((d, i) => (
+                                  <Typography key={i} variant="caption" sx={{ display: 'block' }}>
+                                    {d.field.replace(/([A-Z])/g, ' $1')}: <b>{d.sv || '—'}</b> → <b>{d.mv || '—'}</b>
+                                  </Typography>
+                                ))}
+                              </Box>
+                            ) : (
+                              <Typography variant="caption" color="text.secondary">No differences vs. suggested.</Typography>
+                            )}
                           </Box>
                         );
                         return (
