@@ -67,4 +67,3 @@ class PatientMergeHistory(SQLModel, table=True):
     target_record: str
     run_id: Optional[int] = None
     reason: Optional[str] = None
-

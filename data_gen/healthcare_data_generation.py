@@ -1,9 +1,9 @@
+
 from faker import Faker
 from gender_guesser.detector import Detector
 import random
 import csv
 import re
-
 
 # --- Configure locales and their weights ---
 # Each tuple contains a locale and its weight (probability of being chosen)
@@ -91,45 +91,22 @@ def safe_email(first_name, last_name):
     return f"{email_user}@{random.choice(domains)}"
 
 def one_patient(record_id: int):
-    """Generate a single patient profile with matching city, county, and coordinates."""
+    """Generate a single patient profile."""
     fk = pick_faker()
     first_name = fk.first_name()
     last_name = fk.last_name()
     gender_code = infer_gender_from_name(first_name)
-
-    # Map locale to country code
-    locale_country_map = {
-        "en_US": "US",
-        "en_GB": "GB",
-        "es_ES": "ES",
-        "fr_FR": "FR",
-        "de_DE": "DE",
-        "ro_RO": "RO",
-        "it_IT": "IT"
-    }
-    fk_locale = fk.locales[0] if hasattr(fk, "locales") else fk.locales
-    country_code = locale_country_map.get(fk_locale, "US")
-
-    # Get a location tuple: (city, country, latitude, longitude)
-    loc = fk.local_latlng(country_code=country_code)
-    city = loc[2]
-    latitude = loc[0]
-    longitude = loc[1]
-
-    # Use Faker's state (may not match coordinates exactly)
-    state = fk.state()
-
+    # Build and return a dictionary with patient data
     return {
         "record_id": record_id,
         "first_name": first_name,
         "last_name": last_name,
         "gender": gender_code,
         "date_of_birth": fk.date_of_birth(minimum_age=18, maximum_age=90).strftime("%Y-%m-%d"),
-        "address": fk.street_address(),
-        "city": city,
-        "county": state,
-        #"latitude": latitude,
-        #"longitude": longitude,
+        "street": fk.street_name(),
+        "street_number": fk.building_number(),
+        "city": fk.city(),
+        "county": fk.state(),
         "ssn": safe_ssn(fk),
         "phone_number": safe_phone(fk, length=10),
         "email": safe_email(first_name, last_name)
@@ -140,12 +117,8 @@ def generate_csv(n_records=100, out_path="synthetic_patient_records.csv"):
     rows = [one_patient(i+1) for i in range(n_records)]
     fieldnames = [
         "record_id", "first_name", "last_name", "gender", "date_of_birth",
-        "address", "city", "county", "ssn", "phone_number", "email"
+        "street", "street_number", "city", "county", "ssn", "phone_number", "email"
     ]
-   # fieldnames = [
-   #     "record_id", "first_name", "last_name", "gender", "date_of_birth",
-   #     "address", "city", "county", "latitude", "longitude", "ssn", "phone_number", "email"
-   # ]
     # Write patient data to CSV file
     with open(out_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
@@ -156,9 +129,4 @@ def generate_csv(n_records=100, out_path="synthetic_patient_records.csv"):
 # --- Run the script if executed directly ---
 # If this script is run directly, generate 50 patient records and save to CSV
 if __name__ == "__main__":
-    try:
-        n = int(input("How many patient records do you want to generate? "))
-    except ValueError:
-        print("Invalid input. Using default value: 1000")
-        n = 1000
-    generate_csv(n_records=n, out_path="data_gen/synthetic_patient_records.csv")
+    generate_csv(n_records=10, out_path="data_gen/synthetic_patient_records.csv")

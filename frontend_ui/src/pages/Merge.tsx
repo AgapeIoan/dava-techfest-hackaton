@@ -11,7 +11,7 @@ import type { Patient } from '../store/dupeStore'
 type Draft = Patient
 
 export default function MergePage() {
-  const { mergeCtx, applyMerge, loading ,role } = useDupeStore()
+  const { mergeCtx, applyMerge, loading } = useDupeStore()
   const navigate = useNavigate()
 
   useEffect(() => { if (!mergeCtx) navigate('/duplicates', { replace: true }) }, [mergeCtx, navigate])
@@ -19,9 +19,7 @@ export default function MergePage() {
 
   const { keeper, candidates } = mergeCtx
   const [draft, setDraft] = useState<Draft>({ ...keeper, address: { ...(keeper.address ?? { street:'', number:'', city:'', county:'' }) } })
-  const canApprove = useMemo(() => !!draft.firstName && !!draft.lastName && role === 'admin',
-    [draft, role]
-  )
+  const canApprove = useMemo(() => !!draft.firstName && !!draft.lastName, [draft])
 
   const options = <T extends keyof Draft>(key: T) => Array.from(new Set([keeper, ...candidates].map(p => String((p as any)[key] ?? ''))))
   const addrOptions = (key: keyof NonNullable<Draft['address']>) => Array.from(new Set([keeper, ...candidates].map(p => String(p.address?.[key] ?? ''))))

@@ -14,9 +14,9 @@ from ..services.dedupe import suggest_ai_merge
 router = APIRouter(prefix="/dedupe", tags=["dedupe"])
 
 @router.post("/run", dependencies=[Depends(require_role("admin"))])
-def run_dedupe(session: Session = Depends(get_session)):
+def run_dedupe(req: RunRequest, session: Session = Depends(get_session)):
     # 1) create run
-    run = DedupeRun(model_version="v1", strategy="full")
+    run = DedupeRun(model_version=req.model_version, strategy=req.strategy)
     session.add(run)
     session.commit()
     session.refresh(run)
@@ -25,7 +25,7 @@ def run_dedupe(session: Session = Depends(get_session)):
     df_pat = df_from_patients_table(session)
 
     # 3) run pipeline
-    links_df, clusters = run_pipeline(df_pat)
+    canonical_df, links_df, clusters = run_pipeline(df_pat)
 
     # 4) persist links
     link_models = links_df_to_models(links_df, run_id=run.id)

@@ -11,7 +11,7 @@ TOKEN_EXPIRE_MINUTES = 60
 # predefined users for demonstration purposes
 fake_users_db: Dict[str, Dict[str, str]] = {
     "admin@demo.local": {"username": "admin@demo.local", "password": "adminpass", "role": "admin"},
-    "reception@demo.local": {"username": "reception@demo.local", "password": "receptionpass", "role": "receptionist"},
+    "reception@demo.local": {"username": "reception@demo.local", "password": "receptionpass", "role": "user"},
 }
 
 # authentication scheme

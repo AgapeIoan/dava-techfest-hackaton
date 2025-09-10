@@ -1,22 +1,31 @@
 import sys
+import itertools
+from collections import Counter, defaultdict
 
-import numpy as np
 import pandas as pd
+import networkx as nx
 from rapidfuzz import fuzz
 from typing import List
 from .ai_logic.orchestrator import get_ai_merge_suggestion as get_ai_suggestion
 
-# =============================
-# Config
-# =============================
-DEFAULT_K     = 100    # ANN neighbors per record
+# -----------------------------
+# Config (rule-based only)
+# -----------------------------
+THRESH_LINK   = 0.85   # >= => match
+THRESH_REVIEW = 0.70   # [THRESH_REVIEW, THRESH_LINK) => review
 
-LINK_T   = 0.85   # scor >= LINK_T => "match" (se leagă în graf)
-REVIEW_T = 0.70   # REVIEW_T <= scor < LINK_T => "review"
+WEIGHTS = {
+    "name":    0.30,
+    "dob":     0.25,
+    "email":   0.20,
+    "phone":   0.10,
+    "address": 0.10,
+    "gender":  0.05,
+}
 
-# =============================
-# Similarity utils
-# =============================
+# -----------------------------
+# Similarity utilities
+# -----------------------------
 def _to_str(x):
     return "" if pd.isna(x) else str(x).strip()
 
@@ -66,37 +75,129 @@ def address_sim(a, b):
     union = len(toks_a | toks_b)
     return inter / union
 
+def equality_sim(a, b):
+    a, b = _to_str(a).lower(), _to_str(b).lower()
+    if not a or not b:
+        return 0.0
+    return 1.0 if a == b else 0.0
+
+def record_score(r1, r2):
+    # SSN hard rule: if both are non-empty and identical -> strong match (flag)
+    ssn1, ssn2 = _to_str(r1.get("__ssn", "")), _to_str(r2.get("__ssn", ""))
+    ssn_strict_match = bool(ssn1 and ssn2 and ssn1 == ssn2)
+
+    s_name   = name_sim(r1["__full_name"], r2["__full_name"])
+    s_dob    = dob_sim(r1["__dob"], r2["__dob"])
+    s_email  = email_sim(r1["__email"], r2["__email"])
+    s_phone  = phone_sim(r1["__phone"], r2["__phone"])
+    s_addr   = address_sim(r1["__address"], r2["__address"])
+    s_gender = equality_sim(r1.get("__gender", ""), r2.get("__gender", ""))
+
+    score = (
+        WEIGHTS["name"]    * s_name
+        + WEIGHTS["dob"]   * s_dob
+        + WEIGHTS["email"] * s_email
+        + WEIGHTS["phone"] * s_phone
+        + WEIGHTS["address"] * s_addr
+        + WEIGHTS["gender"]  * s_gender
+    )
+
+    details = {
+        "name": s_name, "dob": s_dob, "email": s_email, "phone": s_phone,
+        "address": s_addr, "gender": s_gender,
+        "ssn_hard_match": 1.0 if ssn_strict_match else 0.0
+    }
+    return score, details, ssn_strict_match
+
+# -----------------------------
+# Blocking
+# -----------------------------
 def email_domain(x):
     x = _to_str(x).lower()
     return x.split("@", 1)[1] if "@" in x else ""
 
-# ---- Gender normalize + sim ----
-def _norm_gender(x: str) -> str:
-    """Normalizează gender la {m,f,o}; empty dacă necunoscut."""
-    g = _to_str(x).lower()
-    if not g:
-        return ""
-    if g in {"m", "male", "masculin", "masc", "b"}:
-        return "m"
-    if g in {"f", "female", "feminin", "fem"}:
-        return "f"
-    if g in {"o", "other", "alt", "non-binary", "nonbinary", "nb"}:
-        return "o"
-    if g and g[0] in {"m","f","o"}:
-        return g[0]
-    return ""
+def phone_last(x, n=3):
+    d = digits_only(x)
+    return d[-n:] if len(d) >= n else ""
 
-def gender_sim(a, b) -> float:
-    ga, gb = _norm_gender(a), _norm_gender(b)
-    if not ga or not gb:
-        return 0.0
-    return 1.0 if ga == gb else 0.0
+def last_name_prefix(x, n=2):
+    x = _to_str(x).lower()
+    return x[:n] if len(x) >= n else x
 
-# =============================
-# Input preparation
-# =============================
+def build_blocks(df):
+    blocks = defaultdict(list)
+    for idx, r in df.iterrows():
+        dob = _to_str(r["__dob"])
+        if dob:
+            blocks[("dob", dob)].append(idx)
+
+        pl3 = phone_last(r["__phone"], 3)
+        if pl3:
+            blocks[("pl3", pl3)].append(idx)
+
+        dom = email_domain(r["__email"])
+        if dom:
+            blocks[("edomain", dom)].append(idx)
+
+        lnp = last_name_prefix(r.get("__last_name", ""), 2)
+        if lnp:
+            blocks[("lnp2", lnp)].append(idx)
+
+        ssn = _to_str(r.get("__ssn", ""))
+        if ssn:
+            blocks[("ssn", ssn)].append(idx)
+    return blocks
+
+def candidate_pairs_from_blocks(blocks):
+    cand = set()
+    for _, ids in blocks.items():
+        if len(ids) < 2:
+            continue
+        ids = sorted(ids)
+        for a, b in itertools.combinations(ids, 2):
+            cand.add((a, b))
+    return cand
+
+# -----------------------------
+# Survivorship
+# -----------------------------
+def consolidate_cluster(df, indices):
+    cluster_df = df.loc[indices]
+
+    def pick_best(col):
+        vals = [v for v in cluster_df[col].tolist() if pd.notna(v) and str(v).strip() != ""]
+        if not vals:
+            return None
+        counts = Counter(vals)
+        maxf = max(counts.values())
+        cands = [v for v in set(vals) if counts[v] == maxf]
+        return max(cands, key=lambda x: len(str(x)))
+
+    out = {
+        "patient_id": None,
+        "source_record_ids": list(cluster_df["record_id"]),
+        "first_name": pick_best("first_name"),
+        "last_name": pick_best("last_name"),
+        "gender": pick_best("gender"),
+        "date_of_birth": pick_best("date_of_birth"),
+        "address": pick_best("address"),
+        "email": pick_best("email"),
+        "phone_number": pick_best("phone_number"),
+        "ssn": pick_best("ssn"),
+        "full_name": pick_best("__full_name"),
+        "aliases": {
+            "names": sorted(set([_to_str(v) for v in cluster_df["__full_name"] if pd.notna(v)])),
+            "emails": sorted(set([_to_str(v) for v in cluster_df["email"] if pd.notna(v)])),
+            "phones": sorted(set([_to_str(v) for v in cluster_df["phone_number"] if pd.notna(v)])),
+        }
+    }
+    return out
+
+# -----------------------------
+# Pipeline
+# -----------------------------
 def prepare_input(df):
-    """Maps CSV schema to internal fields used in scoring/embedding."""
+    """Map CSV schema to internal fields used for scoring."""
     for col in ["record_id", "first_name", "last_name", "gender", "date_of_birth",
                 "address", "city", "county", "ssn", "phone_number", "email", "original_record_id"]:
         if col not in df.columns:
@@ -106,10 +207,9 @@ def prepare_input(df):
     df["__first_name"] = df["first_name"].fillna("").astype(str).str.strip()
     df["__last_name"]  = df["last_name"].fillna("").astype(str).str.strip()
     df["__full_name"]  = (df["__first_name"] + " " + df["__last_name"]).str.strip()
-    df["__dob"]     = df["date_of_birth"]
-    df["__email"]   = df["email"]
-    df["__phone"]   = df["phone_number"]
-    df["__gender"]  = df["gender"]  # păstrăm originalul și vom normaliza la comparare
+    df["__dob"]   = df["date_of_birth"]
+    df["__email"] = df["email"]
+    df["__phone"] = df["phone_number"]
     df["__address"] = (
         df["address"].fillna("").astype(str).str.strip()
         + ", "
@@ -117,303 +217,113 @@ def prepare_input(df):
         + ", "
         + df["county"].fillna("").astype(str).str.strip()
     ).str.replace(r"\s+,", ",", regex=True).str.replace(r"\s+", " ", regex=True).str.strip(", ").str.strip()
+    df["__gender"]  = df["gender"]
     df["__ssn"]     = df["ssn"]
+    df["__last_name"] = df["last_name"]
     return df
 
-# =============================
-# Text for embedding
-# =============================
-def rec_to_text(r):
-    parts = [
-        _to_str(r["__full_name"]).lower(),
-        _to_str(r["__email"]).lower(),
-        digits_only(r["__phone"])[-7:],     # last 7 digits help with proximity
-        _to_str(r["__address"]).lower(),
-        _to_str(r["__dob"]).lower(),
-        # gender NU intră în embedding
-    ]
-    return " | ".join([p for p in parts if p])
-
-# =============================
-# Embedder: TF-IDF char n-grams
-# =============================
-from sklearn.feature_extraction.text import TfidfVectorizer
-
-class Embedder:
-    def __init__(self):
-        self.vec = TfidfVectorizer(analyzer="char", ngram_range=(3,5), min_df=1)
-
-    @property
-    def mode(self):
-        return "tfidf"
-
-    def fit_transform(self, texts):
-        X = self.vec.fit_transform(texts).astype(np.float32)
-        return X  # CSR sparse
-
-    def transform(self, texts):
-        return self.vec.transform(texts).astype(np.float32)
-
-# =============================
-# ANN on sparse: NearestNeighbors (cosine)
-# =============================
-from sklearn.neighbors import NearestNeighbors
-
-def build_ann(embs):
-    nn = NearestNeighbors(n_neighbors=DEFAULT_K+1, metric="cosine", algorithm="brute")
-    nn.fit(embs)
-    return nn
-
-def ann_search(index, embs, k):
-    D, I = index.kneighbors(embs, n_neighbors=k, return_distance=True)
-    return D, I
-
-def build_candidates(index, embs, ids, k=DEFAULT_K):
-    D, I = ann_search(index, embs, k=k+1)  # include self
-    cand = set()
-    n = len(ids)
-    for i in range(n):
-        rid1 = ids[i]
-        for j in I[i][1:]:  # skip self
-            rid2 = ids[j]
-            if rid1 < rid2:
-                cand.add((rid1, rid2))
-            else:
-                cand.add((rid2, rid1))
-    return cand
-
-# =============================
-# Feature engineering on pairs
-# =============================
-FEATURE_ORDER = ["sim_name","sim_email","sim_phone4","sim_addr","sim_dob",
-                 "same_domain","cos_emb","same_gender","ssn_hard"]
-
-from sklearn.metrics.pairwise import cosine_similarity
-
-def pair_features(r1, r2, emb1_row, emb2_row):
-    f = {}
-    f["sim_name"]    = name_sim(r1["__full_name"], r2["__full_name"])
-    f["sim_email"]   = email_sim(r1["__email"], r2["__email"])
-    f["sim_phone4"]  = phone_sim(r1["__phone"], r2["__phone"], last_digits=4)
-    f["sim_addr"]    = address_sim(r1["__address"], r2["__address"])
-    f["sim_dob"]     = dob_sim(r1["__dob"], r2["__dob"])
-    f["same_domain"] = 1.0 if email_domain(r1["__email"]) == email_domain(r2["__email"]) else 0.0
-    f["cos_emb"]     = float(cosine_similarity(emb1_row, emb2_row)[0,0])
-    f["same_gender"] = gender_sim(r1.get("__gender",""), r2.get("__gender",""))
-    f["ssn_hard"]    = 1.0 if (_to_str(r1.get("__ssn","")) != "" and _to_str(r1["__ssn"]) == _to_str(r2.get("__ssn",""))) else 0.0
-    return f
-
-# =============================
-# Heuristic scoring
-# =============================
-WEIGHTS = {
-    "sim_name":    0.28,
-    "sim_email":   0.24,
-    "sim_phone4":  0.10,
-    "sim_addr":    0.14,
-    "sim_dob":     0.12,
-    "same_domain": 0.02,
-    "cos_emb":     0.08,  # redus de la 0.10 ca să încape same_gender
-    "same_gender": 0.02,
-}
-
-def pair_score_heuristic(feats: dict) -> float:
-    s = 0.0
-    for k, w in WEIGHTS.items():
-        s += w * float(feats.get(k, 0.0))
-    if feats.get("same_domain", 0.0) == 1.0 and feats.get("sim_name", 0.0) >= 0.90:
-        s = min(1.0, s + 0.02)
-    return float(s)
-
-# =============================
-# Scorare perechi & decizie
-# =============================
-def score_pairs(pairs, df, embs, id_to_idx):
-    rows = []
-    for rid1, rid2 in pairs:
-        if rid1 == rid2:
-            continue
-        r1 = df.loc[df["record_id"]==rid1].iloc[0]
-        r2 = df.loc[df["record_id"]==rid2].iloc[0]
-        e1 = embs[id_to_idx[rid1]]
-        e2 = embs[id_to_idx[rid2]]
-        feats = pair_features(r1, r2, e1, e2)
-
-        if feats["ssn_hard"] == 1.0:
-            decision = "match"; reason = "ssn_hard"; score = 1.0
-        else:
-            score = pair_score_heuristic(feats)
-            if score >= LINK_T:
-                decision = "match";  reason = "heur_link"
-            elif score >= REVIEW_T:
-                decision = "review"; reason = "heur_review"
-            else:
-                decision = "non-match"; reason = "heur_below"
-
-        rows.append({
-            # record_id* = ID-urile înregistrărilor
-            "record_id1": rid1,
-            "record_id2": rid2,
-            # patient_id* se vor adăuga după clusterizare
-            "score": round(score, 4),
-            "decision": decision,
-            "s_name": round(feats["sim_name"], 4),
-            "s_dob": round(feats["sim_dob"], 4),
-            "s_email": round(feats["sim_email"], 4),
-            "s_phone": round(feats["sim_phone4"], 4),
-            "s_address": round(feats["sim_addr"], 4),
-            "s_gender": round(feats["same_gender"], 4),
-            "s_ssn_hard_match": round(feats["ssn_hard"], 4),
-            "reason": reason,
-        })
-
-    links_df = pd.DataFrame(rows).sort_values(["decision", "score"], ascending=[True, False])
-    return links_df
-
-# =============================
-# Clustering prin componente conexe (union-find)
-# =============================
-class UnionFind:
-    def __init__(self):
-        self.parent = {}
-        self.rank = {}
-
-    def find(self, x):
-        if self.parent.get(x, x) != x:
-            self.parent[x] = self.find(self.parent[x])
-        return self.parent.get(x, x)
-
-    def union(self, a, b):
-        ra, rb = self.find(a), self.find(b)
-        if ra == rb: return
-        if self.rank.get(ra, 0) < self.rank.get(rb, 0):
-            ra, rb = rb, ra
-        self.parent[rb] = ra
-        if self.rank.get(ra, 0) == self.rank.get(rb, 0):
-            self.rank[ra] = self.rank.get(ra, 0) + 1
-
-    def add(self, x):
-        if x not in self.parent:
-            self.parent[x] = x
-            self.rank[x] = 0
-
-def cluster_records(df, links_df):
-    """
-    Creează clustere din perechile cu decision == 'match'.
-    Returnează clusters_df: record_id, cluster_id, patient_id, cluster_size.
-    """
-    uf = UnionFind()
-    for rid in df["record_id"]:
-        uf.add(rid)
-
-    # Unim doar muchiile marcate ca "match"
-    for _, row in links_df.iterrows():
-        if row["decision"] == "match":
-            uf.union(row["record_id1"], row["record_id2"])
-
-    # Construim cluster IDs compacte
-    roots = {}
-    cluster_idx = 0
-    cluster_id = []
-    for rid in df["record_id"]:
-        r = uf.find(rid)
-        if r not in roots:
-            roots[r] = f"C{cluster_idx:06d}"
-            cluster_idx += 1
-        cluster_id.append(roots[r])
-
-    clusters_df = pd.DataFrame({
-        "record_id": df["record_id"],
-        "cluster_id": cluster_id,
-    })
-
-    # mărimea clusterului
-    sizes = clusters_df.groupby("cluster_id")["record_id"].transform("count")
-    clusters_df["cluster_size"] = sizes
-
-    # mapăm fiecare cluster_id la un patient_id de forma P00001
-    unique_clusters = clusters_df["cluster_id"].drop_duplicates().sort_values().tolist()
-    c2pid = {cid: f"P{ix+1:05d}" for ix, cid in enumerate(unique_clusters)}
-    clusters_df["patient_id"] = clusters_df["cluster_id"].map(c2pid)
-
-    # ordonare
-    return clusters_df.sort_values(
-        ["cluster_size","cluster_id","record_id"], ascending=[False, True, True]
-    )
-
-# =============================
-# Main pipeline (cu clustering)
-# =============================
-def run_pipeline(df, k_neighbors=DEFAULT_K):
-    """
-    Returns: links_df, clusters_df
-    """
+def run_pipeline(df):
     df = prepare_input(df)
 
-    # 1) Embedding TF-IDF char (neschimbat)
-    texts = [rec_to_text(r) for _, r in df.iterrows()]
-    embedder = Embedder()
-    embs = embedder.fit_transform(texts)   # CSR
+    # Blocking -> candidate pairs
+    blocks = build_blocks(df)
+    candidates = candidate_pairs_from_blocks(blocks)
 
-    # map record_id -> index
-    ids = df["record_id"].tolist()
-    id_to_idx = {rid: i for i, rid in enumerate(ids)}
+    # Score candidate pairs (rule-based)
+    pairs = []
+    for a, b in sorted(candidates):
+        r1, r2 = df.loc[a], df.loc[b]
+        score, det, ssn_match = record_score(r1, r2)
 
-    # 2) ANN candidates (neschimbat)
-    index = build_ann(embs)
-    candidates = build_candidates(index, embs, ids, k=k_neighbors)
+        if ssn_match:
+            decision = "match"  # SSN hard
+        else:
+            if score >= THRESH_LINK:
+                decision = "match"
+            elif score >= THRESH_REVIEW:
+                decision = "review"
+            else:
+                decision = "non-match"
 
-    # 3) Scorare euristică pe perechi + decizie
-    links_df = score_pairs(candidates, df, embs, id_to_idx)
+        pairs.append({
+            "record_id1": r1["record_id"],
+            "record_id2": r2["record_id"],
+            "score": round(score, 4),
+            "decision": decision,
+            "s_name": round(det["name"], 4),
+            "s_dob": round(det["dob"], 4),
+            "s_email": round(det["email"], 4),
+            "s_phone": round(det["phone"], 4),
+            "s_address": round(det["address"], 4),
+            "s_gender": round(det["gender"], 4),
+            "s_ssn_hard_match": round(det["ssn_hard_match"], 4),
+            "reason": "ssn_hard" if ssn_match else ("rb_threshold" if decision == "match" else ("review_band" if decision == "review" else "below_review")),
+        })
 
-    # 4) Clustering pe muchiile "match"
-    clusters_df = cluster_records(df, links_df)
+    links_df = pd.DataFrame(pairs).sort_values(["decision", "score"], ascending=[True, False])
 
-    # 4.1) Atașăm patient_id1/2 (clusterele) în links_df
-    rec2pid = dict(zip(clusters_df["record_id"], clusters_df["patient_id"]))
-    links_df["patient_id1"] = links_df["record_id1"].map(rec2pid)
-    links_df["patient_id2"] = links_df["record_id2"].map(rec2pid)
-
-    # opțional: reordonăm coloanele pentru lizibilitate
-    cols_order = [
-        "patient_id1","patient_id2",
-        "record_id1","record_id2",
-        "score","decision",
-        "s_name","s_dob","s_email","s_phone","s_address","s_gender",
-        "s_ssn_hard_match","reason",
-    ]
-    links_df = links_df[[c for c in cols_order if c in links_df.columns]]
-
-    # 5) Raport review band (opțional)
+    # Small report on review band
     if not links_df.empty:
         in_review = (links_df["decision"] == "review").sum()
         total = len(links_df)
-        print(f"[Heur] Review band: [{REVIEW_T:.4f}, {LINK_T:.4f}) "
-              f"(count={in_review}, {(in_review/total)*100:.2f}% din perechi)")
+        print(f"[RB] Review band: [{THRESH_REVIEW:.4f}, {THRESH_LINK:.4f}) "
+              f"(count={in_review}, {(in_review/total)*100:.2f}% of pairs)")
 
-    return links_df, clusters_df
+    # Graph of automatic matches -> clusters
+    G = nx.Graph()
+    G.add_nodes_from(df["record_id"].tolist())
+    for row in links_df.itertuples(index=False):
+        if row.decision == "match":
+            G.add_edge(row.record_id1, row.record_id2, weight=row.score)
 
-# =============================
+    clusters = [sorted(list(c)) for c in nx.connected_components(G)]
+    all_ids = set(df["record_id"].tolist())
+    in_graph = set(itertools.chain.from_iterable(clusters))
+    clusters += [[sid] for sid in sorted(list(all_ids - in_graph))]
+
+    # Consolidation
+    canonical_rows = []
+    for idx, cluster_ids in enumerate(clusters, start=1):
+        indices = df.index[df["record_id"].isin(cluster_ids)].tolist()
+        canon = consolidate_cluster(df, indices)
+        canon["patient_id"] = f"P{idx:05d}"
+        canonical_rows.append(canon)
+
+    canonical_df = pd.DataFrame(canonical_rows)
+
+    # Map record -> patient_id in links_df
+    id_to_pid = {}
+    for pid, cluster_ids in zip([c["patient_id"] for c in canonical_rows], clusters):
+        for rid in cluster_ids:
+            id_to_pid[rid] = pid
+
+    if not links_df.empty:
+        links_df["patient_id1"] = links_df["record_id1"].map(id_to_pid.get)
+        links_df["patient_id2"] = links_df["record_id2"].map(id_to_pid.get)
+
+    return canonical_df, links_df, clusters
+
+# -----------------------------
 # CLI
-# =============================
+# -----------------------------
+
 def main():
     if len(sys.argv) >= 2:
         path = sys.argv[1]
         df = pd.read_csv(path, dtype=str).fillna("")
     else:
-        print("Usage: python dedupe_ml.py <input_csv_path>")
+        print("Usage: python dedupe.py <input_csv_path>")
         sys.exit(1)
 
-    links_df, clusters_df = run_pipeline(df)
+    canonical_df, links_df, clusters = run_pipeline(df)
 
-    # output: links + clusters
+    # Write outputs
+    canonical_df.to_json("patients_canonical.json", orient="records", force_ascii=False, indent=2)
+    canonical_df.to_csv("patients_canonical.csv", index=False)
     links_df.to_csv("patients_links.csv", index=False)
-    clusters_df.to_csv("patients_clusters.csv", index=False)
 
     print("Done!")
-    print(f"- Evaluated pairs: {len(links_df)}")
-    print(f"- Clusters: {clusters_df['cluster_id'].nunique()} "
-          f"(med size ~ {clusters_df['cluster_size'].mean():.2f})")
+    print(f"- Found clusters: {len(clusters)}")
 
 def suggest_ai_merge(records: List[dict]) -> dict:
     """
