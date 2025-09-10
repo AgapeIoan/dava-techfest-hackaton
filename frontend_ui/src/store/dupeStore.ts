@@ -356,7 +356,7 @@ const useDupeStore = create<State>()((set, get) => ({
         if (!res.ok) throw new Error('Eroare la căutare!');
         const data = await res.json();
         if (!data || !data.length) {
-          set({ loading: false, toast: 'Nu s-a găsit pacientul.' });
+          set({ loading: false, toast: 'Patient not found.' });
           return;
         }
         // Map backend response to Patient and DuplicateRow
@@ -417,7 +417,7 @@ const useDupeStore = create<State>()((set, get) => ({
       p.firstName.toLowerCase().startsWith(first.toLowerCase()) &&
       p.lastName.toLowerCase().startsWith(last.toLowerCase())
     );
-    set({ patient: matches[0] || null, dupes: matches.slice(1), loading: false, toast: matches.length ? null : 'Nu s-a găsit pacientul.' });
+    set({ patient: matches[0] || null, dupes: matches.slice(1), loading: false, toast: matches.length ? null : 'Patient not found.' });
   },
   toggleSelect: (id: string, val: boolean) => set(s => ({ selected: { ...s.selected, [id]: val } })),
   startMerge() { /* will be set from UI with selected rows */ },
