@@ -46,6 +46,7 @@ type AdminState = {
   duplicateGroups: DuplicateGroupData[];  // state to hold fetched duplicate groups
   isLoading: boolean;   // state for loading indicator
   startDetectionJob: () => Promise<void>;
+  startDetectionJobApi: () => Promise<void>; // new action for real API call
   fetchDuplicateGroups: (runId: number) => Promise<void>;  // action to fetch results
 };
 
@@ -100,6 +101,80 @@ const useAdminStore = create<AdminState>((set, get) => ({
     }, 15 * 1000);
   },
 
+  startDetectionJobApi: async () => {
+    const token = getAuthToken();
+    if (!token) {
+      console.error("Authentication token not found.");
+      return;
+    }
+    set({ isLoading: true });
+    try {
+      const response = await fetch(`${API_BASE}/dedupe/run`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({}), // empty body
+      });
+      if (!response.ok) {
+        let errorMsg = 'Failed to start deduplication job.';
+        try {
+          const errorData = await response.json();
+          errorMsg = errorData.detail || errorMsg;
+        } catch {}
+        throw new Error(errorMsg);
+      }
+      const data = await response.json();
+      // Add new run to history
+      const newRun: DetectionRun = {
+        id: data.run_id,
+        status: 'running',
+        progress: 0,
+        startedAt: new Date().toISOString(),
+      };
+      const updatedHistory = [newRun, ...get().runHistory];
+      set({ runHistory: updatedHistory });
+      saveRunHistory(updatedHistory);
+
+      // Simulate progress updates (mock)
+      const progressInterval = setInterval(() => {
+        const currentHistory = get().runHistory;
+        const runningJob = currentHistory.find(j => j.id === newRun.id);
+        if (!runningJob || runningJob.progress >= 100) {
+          clearInterval(progressInterval);
+          return;
+        }
+        runningJob.progress = Math.min(runningJob.progress + 10, 100);
+        set({ runHistory: [...currentHistory] });
+        saveRunHistory(currentHistory);
+        // Log status update to console
+        console.log(`Deduplication run ${newRun.id} status: running, progress: ${runningJob.progress}%`);
+      }, 1500);
+
+      // Simulate completion
+      setTimeout(() => {
+        clearInterval(progressInterval);
+        const finalHistory = get().runHistory;
+        const runningJob = finalHistory.find(j => j.id === newRun.id);
+        if (runningJob) {
+          runningJob.status = 'completed';
+          runningJob.progress = 100;
+          runningJob.completedAt = new Date().toISOString();
+          runningJob.resultCount = data.links_inserted || 0;
+          set({ runHistory: [...finalHistory] });
+          saveRunHistory(finalHistory);
+          // Log completion to console
+          console.log(`Deduplication run ${newRun.id} status: completed, progress: 100%`);
+        }
+      }, 15 * 1000);
+    } catch (error) {
+      console.error("Error starting deduplication job:", error);
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
   fetchDuplicateGroups: async (runId: number) => {
     if (!runId) {
       console.error("No runId provided to fetchDuplicateGroups.");
@@ -116,7 +191,8 @@ const useAdminStore = create<AdminState>((set, get) => ({
     set({ isLoading: true, duplicateGroups: [] }); // Set loading and clear old results
 
     try {
-      const response = await fetch(`${API_BASE}/patients/matches?run_id=${runId}`, {
+//       const response = await fetch(`${API_BASE}/patients/matches?run_id=${runId}`, {
+    const response = await fetch(`${API_BASE}/patients/matches`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -129,8 +205,26 @@ const useAdminStore = create<AdminState>((set, get) => ({
         throw new Error(errorData.message || `Failed to fetch results for run #${runId}.`);
       }
 
-      const results: DuplicateGroupData[] = await response.json();
-      set({ duplicateGroups: results });
+      const results = await response.json();
+      // Map backend { patient, duplicates } to frontend { mainProfile, duplicates, confidence }
+      function toCamel(obj: any) {
+        if (!obj) return obj;
+        const map: any = {};
+        for (const k in obj) {
+          const camel = k.replace(/_([a-z])/g, g => g[1].toUpperCase());
+          map[camel] = obj[k];
+        }
+        return map;
+      }
+      const mappedResults = results.map((group: any) => ({
+        mainProfile: toCamel(group.patient),
+        duplicates: Array.isArray(group.duplicates) ? group.duplicates.map(d => ({
+          ...d,
+          otherPatient: toCamel(d.other_patient)
+        })) : [],
+        confidence: 'high', // You can add logic to set confidence based on score if needed
+      }));
+      set({ duplicateGroups: mappedResults });
 
     } catch (error) {
       console.error("Error fetching duplicate groups:", error);
@@ -138,6 +232,40 @@ const useAdminStore = create<AdminState>((set, get) => ({
     } finally {
       set({ isLoading: false }); // Always turn off loading indicator
     }
+  },
+
+  markInterruptedJobs: () => {
+    const history = [...get().runHistory];
+    let interrupted = false;
+    for (const run of history) {
+      if (run.status === 'running' && run.progress < 100) {
+        run.status = 'failed';
+        run.progress = 0;
+        interrupted = true;
+      }
+    }
+    if (interrupted) {
+      set({ runHistory: history });
+      saveRunHistory(history);
+    }
+    return interrupted;
+  },
+
+  resetInterruptedJobs: () => {
+    const history = [...get().runHistory];
+    let reset = false;
+    for (const run of history) {
+      if (run.status === 'running') {
+        run.status = 'failed';
+        run.progress = 0;
+        reset = true;
+      }
+    }
+    if (reset) {
+      set({ runHistory: history });
+      saveRunHistory(history);
+    }
+    return reset;
   },
 }));
 

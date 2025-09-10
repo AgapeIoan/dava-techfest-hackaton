@@ -47,7 +47,8 @@ export default function DuplicateGroupCard({
   onManualMerge,
 }: DuplicateGroupCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const { mainProfile, duplicates, confidence } = groupData;
+  const { mainProfile, confidence } = groupData;
+  const duplicates = groupData.duplicates ?? [];
 
   return (
     <Paper elevation={2} sx={{ mb: 2, overflow: 'hidden' }}>
@@ -116,14 +117,14 @@ export default function DuplicateGroupCard({
             Potential Duplicates ({duplicates.length}):
           </Typography>
           <List dense disablePadding>
-            {duplicates.map((duplicate) => (
+            {(duplicates || []).map((duplicate) => (
               <ListItem key={duplicate.id} divider>
                 <ListItemText
                   primary={`${duplicate.firstName} ${duplicate.lastName}`}
                   secondary={`DOB: ${duplicate.dateOfBirth} | Phone: ${duplicate.phone}`}
                 />
                 <Stack direction="row" spacing={1}>
-                  {duplicate.matchReasons.map((reason) => (
+                  {(duplicate.matchReasons || []).map((reason) => (
                     <Chip key={reason} label={reason} size="small" variant="outlined" color="primary" />
                   ))}
                 </Stack>

@@ -265,7 +265,7 @@ export default function AdminPage() {
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   const [groupsToConfirm, setGroupsToConfirm] = useState<DuplicateGroupData[]>([]);
 
-  const [selectedRunId, setSelectedRunId] = useState<number | null>(null);
+  const [selectedRunId, setSelectedRunId] = useState<number | ''>('');
   // File upload state
   const [isUploading, setIsUploading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -283,6 +283,7 @@ export default function AdminPage() {
   } = useAdminStore();
   const latestRun = runHistory.find(r => r.status !== 'idle'); // Find the most recent run
   const isJobRunning = runHistory.some(run => run.status === 'running');
+  const stuckJob = runHistory.find(run => run.status === 'running' && run.progress < 100);
   const allGroups = duplicateGroups;
 
   // --- Upload logic ---
@@ -479,7 +480,7 @@ export default function AdminPage() {
   };
 
   const handleDismissGroup = (mainProfileId: number) => {
-    setAllGroups(prev => prev.filter(group => group.mainProfile.id !== mainProfileId));
+    setAllGroups(prev => prev.filter(group => group.mainProfile.recordId !== mainProfileId));
     setSelectedGroups(prev => {
       const newSelection = new Set(prev);
       newSelection.delete(mainProfileId);
@@ -502,7 +503,9 @@ export default function AdminPage() {
     setSelectedGroups(newSelection);
   };
 
-  const idsOnCurrentPage = paginatedGroups.map(g => g.mainProfile.id);
+  const idsOnCurrentPage = paginatedGroups
+    .filter(g => g && g.mainProfile && typeof g.mainProfile.recordId !== 'undefined')
+    .map(g => g.mainProfile.recordId);
   const selectedOnPageCount = idsOnCurrentPage.filter(id => selectedGroups.has(id)).length;
   const areAllOnPageSelected = idsOnCurrentPage.length > 0 && selectedOnPageCount === idsOnCurrentPage.length;
 
@@ -556,6 +559,26 @@ export default function AdminPage() {
     }
   };
 
+  useEffect(() => {
+    // Show a toast when a run is completed
+    if (runHistory.length > 0) {
+      const latestRun = runHistory[0];
+      if (latestRun.status === 'completed') {
+        setToast('Deduplication run completed!');
+        setToastSeverity('success');
+      }
+    }
+  }, [runHistory]);
+
+  // On mount, mark interrupted jobs as failed
+  useEffect(() => {
+    const interrupted = useAdminStore.getState().markInterruptedJobs();
+    if (interrupted) {
+      setToast('Previous deduplication run was interrupted and marked as failed.');
+      setToastSeverity('error');
+    }
+  }, []);
+
   return (
     <Box>
       <Typography variant="h4" gutterBottom>
@@ -583,15 +606,38 @@ export default function AdminPage() {
           >
             {isUploading ? 'Uploading...' : 'Import CSV'}
           </Button>
-          <Button
+          {/* Hide the mock button for now */}
+          {/* <Button
             variant="contained"
             startIcon={<RunIcon />}
             onClick={startDetectionJob}
             disabled={isJobRunning}
             color="secondary"
           >
+            Find Duplicates (Mock)
+          </Button> */}
+          <Button
+            variant="contained"
+            startIcon={<RunIcon />}
+            onClick={useAdminStore.getState().startDetectionJobApi}
+            disabled={isJobRunning}
+            color="secondary"
+          >
             Find Duplicates
           </Button>
+          {stuckJob && (
+            <Button
+              variant="outlined"
+              color="error"
+              onClick={() => {
+                useAdminStore.getState().resetInterruptedJobs();
+                setToast('Stuck job was reset. You can now start a new run.');
+                setToastSeverity('success');
+              }}
+            >
+              Reset Stuck Job
+            </Button>
+          )}
         </Stack>
       </Paper>
 
@@ -605,7 +651,7 @@ export default function AdminPage() {
             <Select
               value={selectedRunId}
               label="Detection Run"
-              onChange={(e) => setSelectedRunId(e.target.value as number)}
+              onChange={(e) => setSelectedRunId(e.target.value === '' ? '' : Number(e.target.value))}
             >
               {runHistory
                 .filter(r => r.status === 'completed') // Only show completed runs
@@ -632,10 +678,10 @@ export default function AdminPage() {
         <>
           <Paper sx={{ padding: 2, mb: 3 }}>
              <Grid container spacing={2} alignItems="center">
-                <Grid item xs={12} md={6}>
+                <Grid xs={12} md={6}>
                   <TextField fullWidth label="Search by Name or Email" variant="outlined" size="small" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
                 </Grid>
-                <Grid item xs={12} md={6}>
+                <Grid xs={12} md={6}>
                    <FormControl fullWidth size="small">
                     <InputLabel>Confidence Level</InputLabel>
                     <Select value={confidenceFilter} label="Confidence Level" onChange={(e) => setConfidenceFilter(e.target.value)}>
@@ -656,17 +702,25 @@ export default function AdminPage() {
                 </Button>
             </Paper>
           <Typography variant="h6" sx={{ mb: 2 }}>Found {filteredGroups.length} potential duplicate groups</Typography>
+          <Typography sx={{ mb: 2, color: 'red' }}>Debug: paginatedGroups.length = {paginatedGroups.length}</Typography>
+          <pre style={{ color: 'red', fontSize: '12px', maxHeight: '200px', overflow: 'auto' }}>
+            {JSON.stringify(paginatedGroups, null, 2)}
+          </pre>
           {paginatedGroups.length > 0 ? (
-            paginatedGroups.map((group) => (
-              <DuplicateGroup
-                key={group.mainProfile.id}
-                groupData={group}
-                isSelected={selectedGroups.has(group.mainProfile.id)}
-                onSelectionChange={handleSelectionChange}
-                onDismiss={handleDismissGroup}
-                onManualMerge={handleOpenManualMerge}
-              />
-            ))
+            (() => { console.log('First result:', paginatedGroups[0]); })()
+            ,
+            paginatedGroups
+              .filter(group => group && group.mainProfile && typeof group.mainProfile.recordId !== 'undefined')
+              .map((group) => (
+                <DuplicateGroup
+                  key={group.mainProfile.recordId}
+                  groupData={group}
+                  isSelected={selectedGroups.has(group.mainProfile.recordId)}
+                  onSelectionChange={handleSelectionChange}
+                  onDismiss={handleDismissGroup}
+                  onManualMerge={handleOpenManualMerge}
+                />
+              ))
           ) : (
             <Typography sx={{ mt: 3, textAlign: 'center' }}>No duplicate profiles match your current filters.</Typography>
           )}
