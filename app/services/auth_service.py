@@ -16,12 +16,16 @@ fake_users_db: Dict[str, Dict[str, str]] = {
 
 # authentication scheme
 def authenticate_user(username: str, password: str) -> Optional[Dict]:
-    user = fake_users_db.get(username)
-    if not user:
+    # Normalize inputs (trim spaces, case-insensitive email)
+    uname = (username or "").strip().lower()
+    pwd = (password or "").strip()
+    if not uname or not pwd:
         return None
-    if user["password"] != password:
-        return None
-    return user
+    # Case-insensitive lookup for email-like usernames
+    for key, user in fake_users_db.items():
+        if key.lower() == uname:
+            return user if user.get("password") == pwd else None
+    return None
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) ->str:

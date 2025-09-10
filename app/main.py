@@ -18,14 +18,16 @@ init_db()
 app = create_app()
 
 # Add CORS middleware to allow frontend requests
+# Allow common localhost hosts on any port (Vite may use 5173, 5174, etc.)
 origins = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
 ]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
+    # Open CORS for local development across any port/host
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )

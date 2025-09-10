@@ -233,12 +233,16 @@ const useDupeStore = create<State>()((set, get) => ({
     // Login real cu backend (Bearer token)
     set({ loading: true });
     try {
-      const res = await fetch('http://127.0.0.1:8000/auth/login', {
+      // Call backend directly; CORS is configured to allow it
+      const res = await fetch(`${API_BASE}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: email, password }),
       });
-      if (!res.ok) throw new Error('Login failed');
+      if (!res.ok) {
+        set({ toast: res.status === 401 ? 'Email sau parolă incorectă!' : `Login failed (${res.status})`, loading: false });
+        return;
+      }
       const data = await res.json();
       console.log('Login response data:', data);
       const token = data.access_token;
@@ -248,7 +252,7 @@ const useDupeStore = create<State>()((set, get) => ({
       saveAuth({ isAuthenticated: true, email, userName, role, token, remember: true });
       set({ isAuthenticated: true, email, userName, role, roleSource: 'server', toast: `Signed in as ${userName}`, loading: false });
     } catch {
-      set({ toast: 'Email sau parolă incorectă!', loading: false });
+      set({ toast: 'Network error during login', loading: false });
     }
   },
 
