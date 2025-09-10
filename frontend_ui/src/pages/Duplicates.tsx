@@ -211,10 +211,26 @@ export default function DuplicatesPage() {
   };
 
   const { deletePatient } = useDupeStore();
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [patientToDelete, setPatientToDelete] = useState<string | null>(null);
+
   const handleDelete = (patientId: string) => {
-    deletePatient(patientId);
+        setPatientToDelete(patientId);
+    setConfirmDeleteOpen(true);
   };
 
+  const handleConfirmDelete = () => {
+    if (patientToDelete) {
+      deletePatient(patientToDelete);
+    }
+    setConfirmDeleteOpen(false);
+    setPatientToDelete(null);
+  };
+
+  const handleCancelDelete = () => {
+    setConfirmDeleteOpen(false);
+    setPatientToDelete(null);
+  };
 
   return (
     <>
@@ -574,7 +590,14 @@ export default function DuplicatesPage() {
           <Button onClick={handleAddSave} variant="contained" color="primary">Save</Button>
         </DialogActions>
       </Dialog>
-      
+      {/* Confirm Delete Dialog */}
+      <Dialog open={confirmDeleteOpen} onClose={handleCancelDelete} maxWidth="xs" fullWidth>
+        <DialogTitle>Are you sure you want to delete current user?</DialogTitle>
+        <DialogActions>
+          <Button onClick={handleCancelDelete} color="primary">Cancel</Button>
+          <Button onClick={handleConfirmDelete} color="error" variant="contained">Yes</Button>
+        </DialogActions>
+      </Dialog>
     </>
   )
 }

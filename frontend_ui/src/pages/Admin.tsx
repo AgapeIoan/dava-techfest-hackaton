@@ -442,8 +442,14 @@ export default function AdminPage() {
 //     }, 1000);
 //   };
   const handleAutoMerge = () => {
-    if (selectedGroups.size === 0) return;
+    if (selectedGroups.size === 0) {
+      console.log('handleAutoMerge: No groups selected');
+      return;
+    }
+    console.log('handleAutoMerge: selectedGroups', Array.from(selectedGroups));
+    console.log('handleAutoMerge: allGroups', allGroups.map(g => g.mainProfile.id));
     const groupsToMerge = allGroups.filter(group => selectedGroups.has(group.mainProfile.id));
+    console.log('handleAutoMerge: groupsToMerge', groupsToMerge);
     setGroupsToConfirm(groupsToMerge);
     setIsConfirmModalOpen(true);
   };
@@ -451,28 +457,23 @@ export default function AdminPage() {
   // --- Handlers for the Confirmation Modal ---
   const handleApproveConfirmMerge = (approvedGroups: DuplicateGroupData[]) => {
     if (approvedGroups.length === 0) {
-      // This case should be handled by the disabled button, but as a safeguard:
       setIsConfirmModalOpen(false);
       return;
     }
-    const approvedIds = new Set(approvedGroups.map(g => g.mainProfile.id));
-
+    const approvedIds = new Set(approvedGroups.map(g => g.mainProfile.recordId || g.mainProfile.id));
     setIsLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      // On success, filter the main list based on the approved IDs
-      setAllGroups(prev => prev.filter(group => !approvedIds.has(group.mainProfile.id)));
-
-      // Also update the selection set to remove the merged groups
-      setSelectedGroups(prev => {
-        const newSelection = new Set(prev);
-        approvedIds.forEach(id => newSelection.delete(id));
-        return newSelection;
-      });
-
-      setIsLoading(false);
-      setIsConfirmModalOpen(false);
-    }, 1000);
+    // Update the store's duplicateGroups instead of local state
+    useAdminStore.setState(state => ({
+      duplicateGroups: state.duplicateGroups.filter(group => !approvedIds.has(group.mainProfile.recordId || group.mainProfile.id))
+    }));
+    // Also update the selection set to remove the merged groups
+    setSelectedGroups(prev => {
+      const newSelection = new Set(prev);
+      approvedIds.forEach(id => newSelection.delete(id));
+      return newSelection;
+    });
+    setIsLoading(false);
+    setIsConfirmModalOpen(false);
   };
 
   const handleCancelConfirmMerge = () => {
@@ -490,9 +491,11 @@ export default function AdminPage() {
   };
 
   const handleSelectionChange = (mainProfileId: number) => {
+    console.log('handleSelectionChange called with:', mainProfileId);
     const newSelection = new Set(selectedGroups);
     if (newSelection.has(mainProfileId)) newSelection.delete(mainProfileId);
     else newSelection.add(mainProfileId);
+    console.log('selectedGroups after change:', Array.from(newSelection));
     setSelectedGroups(newSelection);
   };
 

@@ -161,7 +161,7 @@ export default function Layout({ children }: PropsWithChildren) {
 
   // Common AppBar for all authenticated users
   const AppHeader = (
-    <AppBar position="fixed" color="default" elevation={0}>
+    <AppBar position="fixed" color="default" elevation={0} sx={{ borderTopLeftRadius: 0, borderTopRightRadius: 0, borderBottomLeftRadius: 10, borderBottomRightRadius: 10}}>
       <Toolbar sx={{ display: 'flex', gap: 2 }}>
         <Typography variant="h4" sx={{ fontWeight: 700, color: 'white', fontFamily: 'Playfair Display, serif', letterSpacing: 1 }}>
           Duplicate Profile Detector

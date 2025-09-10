@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import useDupeStore from '../store/dupeStore'
 import type { Patient } from '../store/dupeStore'
+import axios from 'axios'
 
 type Draft = Patient
 
@@ -38,6 +39,25 @@ export default function MergePage() {
     // API MODE: store.applyMerge va POST-a către /api/merge/approve (vezi store/dupeStore.ts comentarii)
     const res = await applyMerge(draft)
     if (res.ok) navigate('/duplicates')
+  }
+
+  const [aiSuggestion, setAiSuggestion] = useState<any>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+
+  async function onAutoMerge() {
+    setAiLoading(true);
+    setAiError(null);
+    setAiSuggestion(null);
+    try {
+      const records = [keeper, ...candidates];
+      const res = await axios.post('/dedupe/suggest_merge', records);
+      setAiSuggestion(res.data);
+    } catch (err: any) {
+      setAiError(err?.response?.data?.detail || 'Failed to get AI merge suggestion.');
+    } finally {
+      setAiLoading(false);
+    }
   }
 
   return (
@@ -93,8 +113,30 @@ export default function MergePage() {
         <Button variant="contained" color="success" disabled={!canApprove} onClick={onApprove}>
           Approve Merge
         </Button>
+        <Button variant="contained" color="primary" disabled={aiLoading} onClick={onAutoMerge}>
+          Auto-Merge Selected
+        </Button>
       </Stack>
 
+      {aiLoading && (
+        <Backdrop open sx={{ color: '#fff', zIndex: (t)=>t.zIndex.drawer + 1 }}>
+          <CircularProgress color="inherit" />
+        </Backdrop>
+      )}
+      {aiError && (
+        <Typography color="error" sx={{ mt: 2 }}>{aiError}</Typography>
+      )}
+      {aiSuggestion && (
+        <Paper sx={{ mt: 3, p: 2, bgcolor: '#f5f5f5' }}>
+          <Typography variant="h6">AI Merge Suggestion</Typography>
+          <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{JSON.stringify(aiSuggestion.suggested_golden_record, null, 2)}</pre>
+          {aiSuggestion.human_review_required && (
+            <Typography color="warning.main" sx={{ mt: 1 }}>
+              Some fields require human review.
+            </Typography>
+          )}
+        </Paper>
+      )}
       <Backdrop open={loading} sx={{ color: '#fff', zIndex: (t)=>t.zIndex.drawer + 1 }}>
         <CircularProgress color="inherit" />
       </Backdrop>
