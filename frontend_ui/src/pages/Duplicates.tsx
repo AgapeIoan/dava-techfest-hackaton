@@ -18,6 +18,7 @@ import DialogActions from '@mui/material/DialogActions';
 import IconButton from '@mui/material/IconButton';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
+// elimin importul direct pentru deletePatient
 
 
 function maskSSN(ssn?: string) {
@@ -124,11 +125,9 @@ export default function DuplicatesPage() {
     setEditOpen(false);
   };
 
+  const { deletePatient } = useDupeStore();
   const handleDelete = (patientId: string) => {
-    // Exemplu: șterge din store sau trimite la backend
-    // updateDupeStore(patientId);
-    // Sau doar filtrare locală pentru demo:
-    // setDupeList(prev => prev.filter(p => p.id !== patientId));
+    deletePatient(patientId);
   };
 
 
@@ -142,18 +141,9 @@ export default function DuplicatesPage() {
           </Typography>
           <LocalizationProvider dateAdapter={AdapterDateFns}>
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems="center">
-              <TextField label="First Name*" value={first} onChange={e => handleFieldChange(setFirst, e.target.value)} fullWidth required />
-              <TextField label="Last Name*" value={last} onChange={e => handleFieldChange(setLast, e.target.value)} fullWidth required />
-              <Box sx={{ minWidth: 220, flex: 1 }}>
-                <DatePicker
-                  label="Date of Birth (optional)"
-                  value={dob ? new Date(dob) : null}
-                  onChange={(date: Date | null) => { handleFieldChange(setDob, date ? date.toISOString().slice(0, 10) : ''); }}
-                  slotProps={{ textField: { fullWidth: true } }}
-                  disableFuture
-                  format="yyyy-MM-dd"
-                />
-              </Box>
+                <TextField label="First Name" value={first} onChange={e => handleFieldChange(setFirst, e.target.value)} fullWidth required />
+                <TextField label="Last Name" value={last} onChange={e => handleFieldChange(setLast, e.target.value)} fullWidth required />
+              {/* Eliminat câmpul Date of Birth din formularul de căutare */}
               <Button
                 onClick={() => {
                   // @ts-ignore
