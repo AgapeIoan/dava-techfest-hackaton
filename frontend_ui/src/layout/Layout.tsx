@@ -116,7 +116,8 @@ export default function Layout({ children }: PropsWithChildren) {
             A platform for fast identification and management of duplicate profiles in the medical system.
           </Typography>
         </Box>
-        <Box sx={{ minWidth: 320, p: 4, bgcolor: 'white', borderRadius: 3, boxShadow: 3 }}>
+        <Box component="form" onSubmit={(e) => { e.preventDefault(); loginWithBackend(email.trim(), password.trim()); }}
+            sx={{ minWidth: 320, p: 4, bgcolor: 'white', borderRadius: 3, boxShadow: 3 }}>
           <Stack spacing={2}>
             <TextField label="Email" value={email} onChange={(e) => setEmail(e.target.value)} fullWidth size="small" />
             <TextField label="Password" type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} fullWidth size="small"
@@ -128,7 +129,7 @@ export default function Layout({ children }: PropsWithChildren) {
                 ),
               }}
             />
-            <Button variant="contained" onClick={() => loginWithBackend(email.trim(), password.trim())} fullWidth>Login</Button>
+            <Button variant="contained" type="submit" fullWidth>Login</Button>
           </Stack>
         </Box>
         <Snackbar open={!!toast} autoHideDuration={2500} message={toast ?? ''} onClose={clearToast} />
