@@ -475,8 +475,7 @@ export default function AdminPage() {
       approvedIds.forEach(id => newSelection.delete(id));
       return newSelection;
     });
-    // done
-    setIsConfirmModalOpen(false);
+    // Keep dialog open; ConfirmMergeDialog manages remaining items
   };
 
   const handleCancelConfirmMerge = () => {
