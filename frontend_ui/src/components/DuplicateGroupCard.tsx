@@ -54,13 +54,13 @@ export default function DuplicateGroupCard({
   const maxScore = duplicates.length > 0 ? Math.max(...duplicates.map(d => d.score ?? 0)) : 0;
   // Map score to color and label
   const getScoreChipColor = (score: number) => {
-    if (score >= 0.8) return 'success';
-    if (score >= 0.5) return 'warning';
+    if (score >= 0.95) return 'success';
+    if (score >= 0.75) return 'warning';
     return 'default';
   };
   const getScoreLabel = (score: number) => {
-    if (score >= 0.8) return 'High confidence';
-    if (score >= 0.5) return 'Medium confidence';
+    if (score >= 0.95) return 'High confidence';
+    if (score >= 0.75) return 'Medium confidence';
     return 'Low confidence';
   };
 
@@ -90,9 +90,9 @@ export default function DuplicateGroupCard({
         <Stack direction="row" spacing={1} alignItems="center">
           <Tooltip
             title={
-              maxScore >= 0.8
+              maxScore >= 0.95
                 ? 'High confidence: strong match'
-                : maxScore >= 0.5
+                : maxScore >= 0.75
                 ? 'Medium confidence: possible match'
                 : 'Low confidence: weak match'
             }

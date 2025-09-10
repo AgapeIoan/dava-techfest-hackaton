@@ -446,9 +446,12 @@ export default function AdminPage() {
       console.log('handleAutoMerge: No groups selected');
       return;
     }
+    // Defensive: filter out undefined groups
+    const validGroups = (allGroups || []).filter(g => g && g.mainProfile && typeof g.mainProfile.recordId !== 'undefined');
     console.log('handleAutoMerge: selectedGroups', Array.from(selectedGroups));
-    console.log('handleAutoMerge: allGroups', allGroups.map(g => g.mainProfile.id));
-    const groupsToMerge = allGroups.filter(group => selectedGroups.has(group.mainProfile.id));
+    console.log('handleAutoMerge: validGroups', validGroups.map(g => g.mainProfile.recordId));
+    // Use recordId for selection
+    const groupsToMerge = validGroups.filter(group => selectedGroups.has(group.mainProfile.recordId));
     console.log('handleAutoMerge: groupsToMerge', groupsToMerge);
     setGroupsToConfirm(groupsToMerge);
     setIsConfirmModalOpen(true);
@@ -653,6 +656,11 @@ export default function AdminPage() {
 
   return (
     <Box>
+      {/* DEBUG: Show modal state visually */}
+      <Typography variant="caption" color="error" sx={{ position: 'fixed', top: 0, right: 0, zIndex: 9999 }}>
+        Modal open: {String(isConfirmModalOpen)} | Groups: {groupsToConfirm.length}
+      </Typography>
+
       <Typography variant="h4" gutterBottom>
         Find & Merge Duplicates
       </Typography>

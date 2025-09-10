@@ -224,8 +224,8 @@ const useAdminStore = create<AdminState>((set, get) => ({
         return map;
       }
       function scoreToConfidence(score: number): 'high' | 'medium' | 'low' {
-        if (score >= 0.8) return 'high';
-        if (score >= 0.5) return 'medium';
+        if (score >= 0.95) return 'high';
+        if (score >= 0.75) return 'medium';
         return 'low';
       }
       const mappedResults = results.map((group: any) => {
