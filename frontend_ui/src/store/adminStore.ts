@@ -216,14 +216,24 @@ const useAdminStore = create<AdminState>((set, get) => ({
         }
         return map;
       }
-      const mappedResults = results.map((group: any) => ({
-        mainProfile: toCamel(group.patient),
-        duplicates: Array.isArray(group.duplicates) ? group.duplicates.map(d => ({
+      function scoreToConfidence(score: number): 'high' | 'medium' | 'low' {
+        if (score >= 0.8) return 'high';
+        if (score >= 0.5) return 'medium';
+        return 'low';
+      }
+      const mappedResults = results.map((group: any) => {
+        const duplicates = Array.isArray(group.duplicates) ? group.duplicates.map(d => ({
           ...d,
           otherPatient: toCamel(d.other_patient)
-        })) : [],
-        confidence: 'high', // You can add logic to set confidence based on score if needed
-      }));
+        })) : [];
+        // Find highest score among duplicates
+        const maxScore = duplicates.length > 0 ? Math.max(...duplicates.map(d => d.score || 0)) : 0;
+        return {
+          mainProfile: toCamel(group.patient),
+          duplicates,
+          confidence: scoreToConfidence(maxScore),
+        };
+      });
       set({ duplicateGroups: mappedResults });
 
     } catch (error) {

@@ -74,3 +74,11 @@ For our hackathon, we are strategically focusing on a **USA-only dataset** for t
 3.  **Delivering a Polished Demo:** A single-country scope ensures we can build a robust, bug-free, and compelling demo. Instead of explaining complex international rules, we can clearly and quickly showcase our detector's primary value: finding difficult duplicates with high precision.
 
 This focused approach is a strategic choice to ensure we deliver a successful and impressive proof-of-concept, which can be architected to scale to other countries in the future.
+
+
+### Justification for threshold values in reasoning about matches
+Why 0.8?
+ - 0.8 is a common threshold in fuzzy matching and deduplication literature.
+ - It means "80% similar or more"—a strong but not necessarily perfect match.
+ - It balances recall (finding true duplicates) and precision (avoiding false matches).
+ - For names, emails, and other fields, 0.8 is often the point where matches are visually and semantically close enough to be considered duplicates.

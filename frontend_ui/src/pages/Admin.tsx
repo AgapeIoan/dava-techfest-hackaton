@@ -653,8 +653,8 @@ export default function AdminPage() {
               label="Detection Run"
               onChange={(e) => setSelectedRunId(e.target.value === '' ? '' : Number(e.target.value))}
             >
-              {runHistory
-                .filter(r => r.status === 'completed') // Only show completed runs
+              {/* Deduplicate runs by id before rendering */}
+              {Array.from(new Map(runHistory.filter(r => r.status === 'completed').map(run => [run.id, run])).values())
                 .map(run => (
                   <MenuItem key={run.id} value={run.id}>
                     Run #{run.id} - Completed on {new Date(run.completedAt!).toLocaleDateString()}
@@ -668,8 +668,6 @@ export default function AdminPage() {
           </Button>
         </Stack>
       </Paper>
-
-
 
       {/* --- Section 3: Search/filter within results --- */}
       {isLoading ? (
@@ -702,10 +700,6 @@ export default function AdminPage() {
                 </Button>
             </Paper>
           <Typography variant="h6" sx={{ mb: 2 }}>Found {filteredGroups.length} potential duplicate groups</Typography>
-          <Typography sx={{ mb: 2, color: 'red' }}>Debug: paginatedGroups.length = {paginatedGroups.length}</Typography>
-          <pre style={{ color: 'red', fontSize: '12px', maxHeight: '200px', overflow: 'auto' }}>
-            {JSON.stringify(paginatedGroups, null, 2)}
-          </pre>
           {paginatedGroups.length > 0 ? (
             (() => { console.log('First result:', paginatedGroups[0]); })()
             ,
