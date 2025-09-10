@@ -491,17 +491,16 @@ export default function AdminPage() {
   };
 
   const handleSelectionChange = (mainProfileId: number) => {
-    console.log('handleSelectionChange called with:', mainProfileId);
+    // Always use recordId for selection
     const newSelection = new Set(selectedGroups);
     if (newSelection.has(mainProfileId)) newSelection.delete(mainProfileId);
     else newSelection.add(mainProfileId);
-    console.log('selectedGroups after change:', Array.from(newSelection));
     setSelectedGroups(newSelection);
   };
 
   const handleSelectAllOnPage = (event: React.ChangeEvent<HTMLInputElement>) => {
     const newSelection = new Set(selectedGroups);
-    const idsOnCurrentPage = paginatedGroups.map(g => g.mainProfile.id);
+    const idsOnCurrentPage = paginatedGroups.map(g => g.mainProfile.recordId);
     if (event.target.checked) idsOnCurrentPage.forEach(id => newSelection.add(id));
     else idsOnCurrentPage.forEach(id => newSelection.delete(id));
     setSelectedGroups(newSelection);
@@ -778,7 +777,16 @@ export default function AdminPage() {
              </Grid>
           </Paper>
            <Paper sx={{ padding: 1, pl: 2, mb: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
-                <FormControlLabel control={<Checkbox checked={areAllOnPageSelected} onChange={handleSelectAllOnPage} />} label={`Select all on page (${selectedOnPageCount}/${idsOnCurrentPage.length})`} />
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={areAllOnPageSelected}
+                      indeterminate={selectedOnPageCount > 0 && !areAllOnPageSelected}
+                      onChange={handleSelectAllOnPage}
+                    />
+                  }
+                  label={`Select all on page (${selectedOnPageCount}/${idsOnCurrentPage.length})`}
+                />
                 <Box sx={{ flexGrow: 1 }} />
                 <Button variant="contained" color="primary" onClick={handleAutoMerge} disabled={selectedGroups.size === 0} size="small">
                     Auto-Merge Selected ({selectedGroups.size})

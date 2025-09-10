@@ -1,5 +1,8 @@
 # app/services/ai_logic/config.py
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # --- Configurare Provider AI ---
 # Provider-ul AI de utilizat. Optiuni: 'local', 'openai', 'mock'
@@ -15,8 +18,7 @@ LLM_CPU_THREADS = 4
 
 # --- Configurare OpenAI ---
 # Cheia API trebuie setata ca variabila de mediu, NU direct in cod.
-# OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-OPENAI_API_KEY = "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"
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 OPENAI_MODEL_NAME = os.getenv("OPENAI_MODEL_NAME", "gpt-4o-mini")
 
 # --- Configurare Mod Mock (suprascrie AI_PROVIDER daca e True) ---

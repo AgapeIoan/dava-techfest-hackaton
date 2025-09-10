@@ -90,3 +90,4 @@ wrapt==1.17.2
 # llama-cpp-python
 # huggingface
 openai
+python-dotenv
