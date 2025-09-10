@@ -117,3 +117,32 @@ class AIMergeSuggestionResponse(BaseModel):
     human_review_required: bool
     conflicts_resolved: List[AIFieldResolution]
     processing_log: List[str]
+
+class PatientCreate(BaseModel):
+    record_id: Optional[str] = None
+    original_record_id: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    gender: Optional[str] = None
+    date_of_birth: Optional[str] = None
+    address: Optional[str] = None
+    city: Optional[str] = None
+    county: Optional[str] = None
+    ssn: Optional[str] = None
+    phone_number: Optional[str] = None
+    email: Optional[str] = None
+
+class DuplicateHit(BaseModel):
+    other_record_id: str
+    decision: str  # match | review
+    score: float
+    reason: Optional[str] = None
+    other_patient: Optional[PatientOut] = None
+
+class IntakeResult(BaseModel):
+    created: bool
+    record_id: str
+    decision: str                 # created | attached_to_cluster | review_required
+    patient_id: Optional[str] = None
+    duplicates: List[DuplicateHit] = Field(default_factory=list)
+    message: Optional[str] = None

@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from .db import init_db
-from .routers import ingest, dedupe, links, export, patients, auth
+from .routers import ingest, dedupe, links, export, patients, auth, patients_intake
+from fastapi.middleware.cors import CORSMiddleware
 
 def create_app() -> FastAPI:
     app = FastAPI(title="Patients Dedupe API", version="1.0.0")
@@ -10,6 +11,14 @@ def create_app() -> FastAPI:
     app.include_router(export.router)
     app.include_router(patients.router)
     app.include_router(auth.router)
+    app.include_router(patients_intake.router)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["http://localhost:5173"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
     return app
 
 init_db()
