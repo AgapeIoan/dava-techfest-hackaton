@@ -50,6 +50,20 @@ export default function DuplicateGroupCard({
   const { mainProfile, confidence } = groupData;
   const duplicates = groupData.duplicates ?? [];
 
+  // Extract the highest score from duplicates
+  const maxScore = duplicates.length > 0 ? Math.max(...duplicates.map(d => d.score ?? 0)) : 0;
+  // Map score to color and label
+  const getScoreChipColor = (score: number) => {
+    if (score >= 0.8) return 'success';
+    if (score >= 0.5) return 'warning';
+    return 'default';
+  };
+  const getScoreLabel = (score: number) => {
+    if (score >= 0.8) return 'High confidence';
+    if (score >= 0.5) return 'Medium confidence';
+    return 'Low confidence';
+  };
+
   return (
     <Paper elevation={2} sx={{ mb: 2, overflow: 'hidden' }}>
       <Box
@@ -74,12 +88,23 @@ export default function DuplicateGroupCard({
           </Typography>
         </Box>
         <Stack direction="row" spacing={1} alignItems="center">
-          <Chip
-            label={`${confidence} confidence`}
-            color={getConfidenceChipColor(confidence)}
-            size="small"
-            variant="outlined"
-          />
+          <Tooltip
+            title={
+              maxScore >= 0.8
+                ? 'High confidence: strong match'
+                : maxScore >= 0.5
+                ? 'Medium confidence: possible match'
+                : 'Low confidence: weak match'
+            }
+            arrow
+          >
+            <Chip
+              label={getScoreLabel(maxScore)}
+              color={getScoreChipColor(maxScore)}
+              size="small"
+              variant="outlined"
+            />
+          </Tooltip>
           {onManualMerge && (
             <Button
               variant="outlined"

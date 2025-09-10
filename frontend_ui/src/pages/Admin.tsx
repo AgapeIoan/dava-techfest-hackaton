@@ -737,13 +737,22 @@ export default function AdminPage() {
               label="Detection Run"
               onChange={(e) => setSelectedRunId(e.target.value === '' ? '' : Number(e.target.value))}
             >
-              {/* Deduplicate runs by id before rendering */}
-              {Array.from(new Map(runHistory.filter(r => r.status === 'completed').map(run => [run.id, run])).values())
+              {/* Show up to 10 most recent completed runs, sorted by completedAt descending */}
+              {runHistory
+                .filter(r => r.status === 'completed')
+                .sort((a, b) => {
+                  // Prefer completedAt, fallback to id
+                  if (a.completedAt && b.completedAt) {
+                    return new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime();
+                  }
+                  return b.id - a.id;
+                })
+                .slice(0, 10)
                 .map(run => (
                   <MenuItem key={run.id} value={run.id}>
-                    Run #{run.id} - Completed on {new Date(run.completedAt!).toLocaleDateString()}
+                    Run #{run.id} - Completed on {run.completedAt ? new Date(run.completedAt).toLocaleDateString() : 'N/A'}
                   </MenuItem>
-              ))}
+                ))}
             </Select>
           </FormControl>
 

@@ -212,6 +212,7 @@ const useAdminStore = create<AdminState>((set, get) => ({
       }
 
       const results = await response.json();
+      console.log('API /patients/matches response:', results);
       // Map backend { patient, duplicates } to frontend { mainProfile, duplicates, confidence }
       function toCamel(obj: any) {
         if (!obj) return obj;
@@ -235,6 +236,8 @@ const useAdminStore = create<AdminState>((set, get) => ({
               otherPatient: toCamel(d.other_patient)
             }))
           : [];
+        // Log scores for debugging
+        console.log('Group scores:', duplicates.map(d => d.score));
         // Find highest score among duplicates
         const maxScore = duplicates.length > 0 ? Math.max(...duplicates.map(d => d.score || 0)) : 0;
         return {
