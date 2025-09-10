@@ -203,7 +203,13 @@ export default function DuplicatesPage() {
         throw new Error('Failed to update patient');
       }
       setEditSuccessOpen(true);
-      // Optionally update local state/store here if needed
+      // Update local store snapshot so UI reflects new values
+      const updated = { ...editPatient };
+      // sync into store patient/dupes
+      useDupeStore.setState((s) => ({
+        patient: s.patient && s.patient.id === updated.id ? { ...s.patient, ...updated } : s.patient,
+        dupes: s.dupes.map(p => p.id === updated.id ? { ...p, ...updated } : p),
+      }));
     } catch (error) {
       console.error('Error updating patient:', error);
       // Optionally show error to user
