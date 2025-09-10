@@ -1,3 +1,4 @@
+import { is } from 'date-fns/locale';
 import { create } from 'zustand'
 
 // ---------- Tipuri ----------
@@ -15,7 +16,7 @@ export type ActivityEvent = {
 
 // ---------- Config API ----------
 export const USE_API = true
-export const API_BASE = import.meta.env.VITE_API_BASE ?? '/api'
+export const API_BASE = "http://127.0.0.1:8000"
 
 // ---------- Roluri & persistare ----------
 type Role = 'receptionist' | 'admin';
@@ -161,6 +162,7 @@ type State = {
   startMerge: () => void;
   applyMerge: (merged: Patient) => Promise<{ ok: boolean; keeperId: string; mergedIds: string[] }>;
   undoLastMerge: () => void;
+  deletePatient: (id: string) => Promise<void>;
 }
 
 // API DTOs & fetchers
@@ -353,38 +355,40 @@ const useDupeStore = create<State>()((set, get) => ({
         }
         // Map backend response to Patient and DuplicateRow
         const main = data[0];
-        const patient = {
-          id: main.patient.record_id,
-          firstName: main.patient.first_name,
-          lastName: main.patient.last_name,
-          ssn: main.patient.ssn,
-          dob: main.patient.date_of_birth,
-          phone: main.patient.phone_number,
-          email: main.patient.email,
-          address: {
-            street: main.patient.address,
-            number: '',
-            city: main.patient.city,
-            county: main.patient.county
-          }
-        };
-        const dupes = (main.duplicates || []).map((d: any) => ({
-          id: d.other_patient.record_id,
-          firstName: d.other_patient.first_name,
-          lastName: d.other_patient.last_name,
-          ssn: d.other_patient.ssn,
-          dob: d.other_patient.date_of_birth,
-          phone: d.other_patient.phone_number,
-          email: d.other_patient.email,
-          address: {
-            street: d.other_patient.address,
-            number: '',
-            city: d.other_patient.city,
-            county: d.other_patient.county
-          },
-          matchPct: d.score * 100,
-          reasons: [d.reason]
-        }));
+    const patient = {
+      id: main.patient.record_id,
+      firstName: main.patient.first_name,
+      lastName: main.patient.last_name,
+      ssn: main.patient.ssn,
+      phone: main.patient.phone_number,
+      email: main.patient.email,
+      isdeleted: main.patient.is_deleted,
+      address: {
+        street: main.patient.address,
+        number: '',
+        city: main.patient.city,
+        county: main.patient.county
+      }
+    };
+          const dupes = (main.duplicates || [])
+            .filter((d: any) => d.other_patient.is_deleted !== true)
+        .map((d: any) => ({
+        id: d.other_patient.record_id,
+        firstName: d.other_patient.first_name,
+        lastName: d.other_patient.last_name,
+        ssn: d.other_patient.ssn,
+        phone: d.other_patient.phone_number,
+        email: d.other_patient.email,
+        isdeleted: d.other_patient.is_deleted,
+        address: {
+          street: d.other_patient.address,
+          number: '',
+          city: d.other_patient.city,
+          county: d.other_patient.county
+        },
+        matchPct: d.score * 100,
+        reasons: [d.reason]
+      }));
         set({ patient, dupes, loading: false, toast: null });
       } catch (e) {
         set({ loading: false, toast: 'Eroare la căutare!' });
@@ -420,6 +424,31 @@ const useDupeStore = create<State>()((set, get) => ({
     return { ok: true, keeperId: '', mergedIds: [] }; // placeholder – păstrează implementarea ta
   },
   undoLastMerge() { /* … */ },
+
+  async deletePatient(id: string) {
+    set({ loading: true });
+    try {
+      const token = sessionStorage.getItem('token');
+      const res = await fetch(`${API_BASE}/patients/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        }
+      });
+      if (!res.ok) throw new Error('Delete failed');
+      // Actualizează store-ul local
+      set(s => ({
+        db: s.db.filter(p => p.id !== id),
+        dupes: s.dupes.filter(p => p.id !== id),
+        patient: s.patient && s.patient.id === id ? null : s.patient,
+        toast: 'Patient deleted successfully',
+        loading: false
+      }));
+    } catch {
+      set({ toast: 'Delete failed', loading: false });
+    }
+  },
 }));
 
 export default useDupeStore
