@@ -138,7 +138,6 @@ type State = {
   db: Patient[]; lastSnapshot: Patient[] | null;
   first: string; last: string; loading: boolean; threshold: number;
   role: Role; roleSource: 'local' | 'server'; toast: string | null;
-  toast: string | null;
 
   isAuthenticated: boolean;
   userName?: string;
@@ -146,6 +145,7 @@ type State = {
 
   patient: Patient | null; dupes: DuplicateRow[]; selected: Record<string, boolean>;
   mergeCtx: MergeContext | null; activity: ActivityEvent[];
+  aiSuggestion: any | null;
 
   setFirst: (v: string) => void; setLast: (v: string) => void;
   setThreshold: (v: number) => void; setRole: (r: Role) => void;
@@ -160,6 +160,7 @@ type State = {
   findDuplicates: () => Promise<void>;
   toggleSelect: (id: string, val: boolean) => void;
   startMerge: () => void;
+  autoMergeSelected: () => Promise<{ stopForReview: boolean } | void>;
   applyMerge: (merged: Patient) => Promise<{ ok: boolean; keeperId: string; mergedIds: string[] }>;
   undoLastMerge: () => void;
   deletePatient: (id: string) => Promise<void>;
@@ -215,6 +216,7 @@ const useDupeStore = create<State>()((set, get) => ({
   dupes: [],
   selected: {},
   mergeCtx: null,
+  aiSuggestion: null,
   activity: [],
 
   setFirst: (v: string) => set({ first: v, patient: null, dupes: [] }),
@@ -416,16 +418,123 @@ const useDupeStore = create<State>()((set, get) => ({
     set({ patient: matches[0] || null, dupes: matches.slice(1), loading: false, toast: matches.length ? null : 'Nu s-a găsit pacientul.' });
   },
   toggleSelect: (id: string, val: boolean) => set(s => ({ selected: { ...s.selected, [id]: val } })),
-  startMerge() { /* … */ },
+  startMerge() { /* will be set from UI with selected rows */ },
+  async autoMergeSelected() {
+    const { patient, dupes } = get();
+    const token = sessionStorage.getItem('token');
+    if (!patient) { set({ toast: 'No keeper selected' }); return; }
+    const selectedIds = Object.entries(get().selected).filter(([,v])=>!!v).map(([k])=>k);
+    if (selectedIds.length === 0) { set({ toast: 'Select duplicates first' }); return; }
+    set({ loading: true });
+    // helper: map Patient -> backend PatientRecordInput
+    const toBackend = (p: Patient) => ({
+      record_id: p.id,
+      first_name: p.firstName,
+      last_name: p.lastName,
+      date_of_birth: p.dob,
+      address: p.address?.street ?? '',
+      city: p.address?.city ?? '',
+      county: p.address?.county ?? '',
+      ssn: p.ssn,
+      phone_number: p.phone,
+      email: p.email,
+      gender: (p as any).gender,
+    });
+    const toUpdatePayload = (gr: any, current: Patient) => {
+      // Build PatientUpdate (backend) with only changed fields
+      const upd: any = {};
+      const map = [
+        ['first_name','firstName'], ['last_name','lastName'], ['date_of_birth','dob'],
+        ['address','address.street'], ['city','address.city'], ['county','address.county'],
+        ['ssn','ssn'], ['phone_number','phone'], ['email','email'], ['gender','gender']
+      ];
+      const getVal = (obj:any, path:string) => path.split('.').reduce((o,k)=>o?.[k], obj);
+      for (const [bk, fk] of map) {
+        const cur = getVal(current, fk);
+        const sug = gr?.[bk];
+        if (sug !== undefined && sug !== null && String(sug) !== String(cur ?? '')) {
+          upd[bk] = sug;
+        }
+      }
+      return upd;
+    };
+
+    try {
+      for (const id of selectedIds) {
+        const dupe = dupes.find(d=>d.id===id);
+        if (!dupe) continue;
+        // 1) Ask AI suggestion for [keeper, dupe]
+        const res = await fetch(`${API_BASE}/dedupe/suggest_merge`, {
+          method:'POST', headers:{ 'Content-Type':'application/json', ...(token ? { Authorization:`Bearer ${token}` } : {}) },
+          body: JSON.stringify([toBackend(patient), toBackend(dupe)])
+        });
+        if (!res.ok) throw new Error('AI suggestion failed');
+        const suggestion = await res.json();
+        if (suggestion?.human_review_required) {
+          // Stop and open Merge with AI hints
+          set({ mergeCtx: { keeper: patient, candidates: [dupe] }, aiSuggestion: suggestion, loading: false });
+          return { stopForReview: true };
+        }
+        // 2) Auto-merge via backend
+        const updates = toUpdatePayload(suggestion?.suggested_golden_record, patient);
+        const mergeReq = {
+          master_record_id: patient.id,
+          duplicate_record_ids: [dupe.id],
+          updates,
+          reason: 'AI auto-merge'
+        };
+        const mres = await fetch(`${API_BASE}/patients/merge`, {
+          method:'POST', headers:{ 'Content-Type':'application/json', ...(token ? { Authorization:`Bearer ${token}` } : {}) },
+          body: JSON.stringify(mergeReq)
+        });
+        if (!mres.ok) throw new Error('Merge failed');
+      }
+      set({ toast: 'Auto-merge completed', loading: false });
+      return { stopForReview: false };
+    } catch (e) {
+      console.error(e);
+      set({ toast: 'Auto-merge failed', loading: false });
+    }
+  },
   async applyMerge(merged: Patient) {
     const { mergeCtx, role } = get();
     if (!mergeCtx) return { ok: false, keeperId: '', mergedIds: [] };
-    if (role !== 'approver' && role !== 'admin') {
-      set({ toast: 'You need approver/admin role to approve merges.' });
+    if (role !== 'admin') {
+      set({ toast: 'Only admin can approve merges.' });
       return { ok: false, keeperId: '', mergedIds: [] };
     }
-    // … restul logicii tale (mock/API) …
-    return { ok: true, keeperId: '', mergedIds: [] }; // placeholder – păstrează implementarea ta
+    const token = sessionStorage.getItem('token');
+    const updates: any = {};
+    const map = [
+      ['first_name','firstName'], ['last_name','lastName'], ['date_of_birth','dob'],
+      ['address','address.street'], ['city','address.city'], ['county','address.county'],
+      ['ssn','ssn'], ['phone_number','phone'], ['email','email']
+    ];
+    const getVal = (obj:any, path:string) => path.split('.').reduce((o,k)=>o?.[k], obj);
+    const cur = mergeCtx.keeper;
+    for (const [bk, fk] of map) {
+      const curVal = getVal(cur, fk);
+      const newVal = getVal(merged, fk);
+      if (String(newVal ?? '') !== String(curVal ?? '')) updates[bk] = newVal ?? '';
+    }
+    try {
+      const req = {
+        master_record_id: mergeCtx.keeper.id,
+        duplicate_record_ids: mergeCtx.candidates.map(c=>c.id),
+        updates,
+        reason: 'Manual approval after AI suggestion'
+      };
+      const res = await fetch(`${API_BASE}/patients/merge`, {
+        method:'POST', headers:{ 'Content-Type':'application/json', ...(token ? { Authorization:`Bearer ${token}` } : {}) },
+        body: JSON.stringify(req)
+      });
+      if (!res.ok) throw new Error('merge failed');
+      set({ toast: 'Merge approved' });
+      return { ok: true, keeperId: mergeCtx.keeper.id, mergedIds: mergeCtx.candidates.map(c=>c.id) };
+    } catch (e) {
+      set({ toast: 'Merge failed' });
+      return { ok: false, keeperId: '', mergedIds: [] };
+    }
   },
   undoLastMerge() { /* … */ },
 

@@ -8,6 +8,7 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { useState } from 'react'
+import Checkbox from '@mui/material/Checkbox'
 import { useNavigate } from 'react-router-dom'
 import DuplicateGroup from "../components/DuplicateGroupCard";
 import useDupeStore from "../store/dupeStore";
@@ -132,7 +133,7 @@ export default function DuplicatesPage() {
       }
   };
 
-  const { first, last, setFirst, setLast, loading, patient, dupes, findDuplicates, isAuthenticated, role, search } = useDupeStore()
+  const { first, last, setFirst, setLast, loading, patient, dupes, selected, toggleSelect, isAuthenticated, role, search, autoMergeSelected } = useDupeStore()
   const [dob, setDob] = useState<string>('');
   const [searchAttempted, setSearchAttempted] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -315,9 +316,19 @@ export default function DuplicatesPage() {
             elevation={3}
           >
         {/* Eliminat titlul deasupra tabelului */}
+            <Stack direction="row" spacing={1} sx={{ mb: 1 }}>
+              <Button variant="contained" color="secondary" disabled={!Object.values(selected||{}).some(Boolean) || loading}
+                      onClick={async ()=>{
+                        const res = await autoMergeSelected();
+                        if (res && res.stopForReview) navigate('/merge');
+                      }}>
+                Auto-Merge Selected
+              </Button>
+            </Stack>
             <Table size="small" sx={{ background: '#fff' }}>
               <TableHead>
                 <TableRow>
+                  <TableCell padding="checkbox"></TableCell>
                   <TableCell>First Name</TableCell>
                   <TableCell>Last Name</TableCell>
                   <TableCell>SSN</TableCell>
@@ -331,8 +342,18 @@ export default function DuplicatesPage() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {sorted.map(row => (
+                {sorted.map((row, idx) => (
                   <TableRow key={row.id} hover>
+                    <TableCell padding="checkbox">
+                      {idx === 0 ? null : (
+                        <Checkbox
+                          color="primary"
+                          size="small"
+                          checked={!!selected?.[row.id]}
+                          onChange={e=>toggleSelect(row.id, e.target.checked)}
+                        />
+                      )}
+                    </TableCell>
                     <TableCell>{row.firstName}</TableCell>
                     <TableCell>{row.lastName}</TableCell>
                     <TableCell>{maskSSN(row.ssn)}</TableCell>

@@ -8,39 +8,49 @@ import {
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import CloseIcon from '@mui/icons-material/Close';
 import { DuplicateGroupData, Profile } from '../pages/Admin';
+import { API_BASE, getAuthToken } from '../store/dupeStore';
 
-// --- LLM Simulation Logic ---
-// In a real app, this logic would live on the backend.
-// For the demo, we simulate the AI's decision-making process here.
-const simulateLlmMerge = (group: DuplicateGroupData) => {
-  const { mainProfile, duplicates } = group;
-  const allProfiles = [mainProfile, ...duplicates];
-  const mergedProfile: Partial<Profile> = {};
-  const reasoning: Record<string, string> = {};
-
-  // Define the fields to merge
-  const fields: (keyof Profile)[] = [
-    'firstName', 'lastName', 'dateOfBirth', 'phone', 'email', 'ssn',
-    'address', 'city', 'county', 'gender'
-  ];
-
-  fields.forEach(field => {
-    // Simple logic: prefer the value from the last duplicate as it might be the "newest".
-    // If no duplicates, use the main profile's value.
-    const sourceProfile = duplicates.length > 0 ? duplicates[duplicates.length - 1] : mainProfile;
-
-    // For name, we can have a slightly "smarter" logic
-    if (field === 'firstName' || field === 'lastName') {
-        mergedProfile[field] = mainProfile[field];
-        reasoning[field] = `from main profile (#${mainProfile.id})`;
-    } else {
-        mergedProfile[field] = sourceProfile[field];
-        reasoning[field] = `from duplicate (#${sourceProfile.id})`;
-    }
-  });
-
-  return { mergedProfile: mergedProfile as Profile, reasoning };
+// --- Helpers to call real LLM backend ---
+type AiResolution = { field_name: string; value_A: any; value_B: any; chosen_value: any; justification?: string };
+type AiSuggestion = {
+  suggested_golden_record: any;
+  human_review_required: boolean;
+  conflicts_resolved: AiResolution[];
+  processing_log?: string[];
 };
+
+function toBackendRecord(p: any) {
+  return {
+    record_id: String(p.recordId ?? p.id ?? ''),
+    original_record_id: p.originalRecordId ?? null,
+    first_name: p.firstName ?? '',
+    last_name: p.lastName ?? '',
+    gender: p.gender ?? '',
+    date_of_birth: p.dateOfBirth ?? '',
+    address: p.address ?? '',
+    city: p.city ?? '',
+    county: p.county ?? '',
+    ssn: p.ssn ?? '',
+    phone_number: p.phoneNumber ?? p.phone ?? '',
+    email: p.email ?? '',
+  };
+}
+
+function goldenToUi(gr: any): Partial<Profile> {
+  return {
+    // Keep camelCase used in Admin UI
+    firstName: gr.first_name ?? '',
+    lastName: gr.last_name ?? '',
+    dateOfBirth: gr.date_of_birth ?? '',
+    phoneNumber: gr.phone_number ?? '',
+    email: gr.email ?? '',
+    ssn: gr.ssn ?? '',
+    address: gr.address ?? '',
+    city: gr.city ?? '',
+    county: gr.county ?? '',
+    gender: gr.gender ?? '',
+  } as Partial<Profile>;
+}
 
 
 // --- Component Props ---
@@ -53,21 +63,120 @@ interface ConfirmMergeDialogProps {
 
 export default function ConfirmMergeDialog({ open, groups, onApprove, onCancel }: ConfirmMergeDialogProps) {
   const [pendingGroups, setPendingGroups] = useState<DuplicateGroupData[]>([]);
+  const [suggestions, setSuggestions] = useState<Record<string, AiSuggestion | null>>({});
+  const [loading, setLoading] = useState<Record<string, boolean>>({});
+  const [errors, setErrors] = useState<Record<string, string | null>>({});
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    // When the modal opens, populate the pending list from props
-    if (open) {
-      setPendingGroups(groups);
-    }
+    // When the modal opens, populate the pending list from props and fetch AI suggestions
+    if (!open) return;
+    setPendingGroups(groups);
+    (async () => {
+      const token = getAuthToken();
+      for (const g of groups) {
+        const gid = String((g.mainProfile as any).recordId ?? (g.mainProfile as any).id);
+        setLoading(prev => ({ ...prev, [gid]: true }));
+        setErrors(prev => ({ ...prev, [gid]: null }));
+        try {
+          const records = [g.mainProfile, ...(g.duplicates || [])].map(toBackendRecord);
+          const res = await fetch(`${API_BASE}/dedupe/suggest_merge`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify(records),
+          });
+          if (!res.ok) throw new Error(`AI suggest failed (${res.status})`);
+          const data: AiSuggestion = await res.json();
+          setSuggestions(prev => ({ ...prev, [gid]: data }));
+        } catch (e: any) {
+          setErrors(prev => ({ ...prev, [gid]: e?.message || 'Failed to get AI suggestion' }));
+          setSuggestions(prev => ({ ...prev, [gid]: null }));
+        } finally {
+          setLoading(prev => ({ ...prev, [gid]: false }));
+        }
+      }
+    })();
   }, [groups, open]);
 
   // --- NEW: Handler to reject/remove a single group ---
-  const handleRejectGroup = (event: React.MouseEvent, groupIdToReject: number) => {
+  const handleRejectGroup = (event: React.MouseEvent, groupIdToReject: number | string) => {
     event.stopPropagation(); // Prevents the accordion from toggling
-    setPendingGroups(prev => prev.filter(g => g.mainProfile.id !== groupIdToReject));
+    setPendingGroups(prev => prev.filter(g => ((g.mainProfile as any).recordId ?? (g.mainProfile as any).id) !== groupIdToReject));
   };
 
   if (!groups.length) return null;
+
+  // helpers to compute updates payload for /patients/merge
+  const buildUpdates = (main: any, goldenUi: Partial<Profile>) => {
+    const updates: Record<string, any> = {};
+    const mapping: Array<[string, string]> = [
+      ['first_name','firstName'], ['last_name','lastName'], ['date_of_birth','dateOfBirth'],
+      ['phone_number','phoneNumber'], ['email','email'], ['ssn','ssn'],
+      ['address','address'], ['city','city'], ['county','county'], ['gender','gender']
+    ];
+    for (const [snake, camel] of mapping) {
+      const cur = (main as any)?.[camel];
+      const val = (goldenUi as any)?.[camel];
+      if (val !== undefined && String(val ?? '') !== String(cur ?? '')) updates[snake] = val ?? '';
+    }
+    return updates;
+  };
+
+  const handleApprove = async () => {
+    setSubmitting(true);
+    const token = getAuthToken();
+    const okGroups: DuplicateGroupData[] = [];
+    for (const g of pendingGroups) {
+      const gid = String((g.mainProfile as any).recordId ?? (g.mainProfile as any).id);
+      const ai = suggestions[gid];
+      if (!ai || ai.human_review_required) {
+        // skip; stays in dialog for manual review
+        continue;
+      }
+      try {
+        const goldenUi = goldenToUi(ai.suggested_golden_record);
+        const updates = buildUpdates(g.mainProfile, goldenUi);
+        const masterId = (g.mainProfile as any).recordId ?? (g.mainProfile as any).id;
+        const duplicateIds = (g.duplicates || [])
+          .map((d:any)=> d.recordId ?? d?.other_patient?.record_id ?? d.id)
+          .filter((id:any)=> id != null && id !== masterId);
+        const payload = {
+          master_record_id: masterId,
+          duplicate_record_ids: duplicateIds,
+          updates,
+          reason: 'AI auto-merge (Admin)'
+        };
+        const res = await fetch(`${API_BASE}/patients/merge`, {
+          method:'POST',
+          headers:{ 'Content-Type':'application/json', ...(token ? { Authorization:`Bearer ${token}` } : {}) },
+          body: JSON.stringify(payload)
+        });
+        if (!res.ok) throw new Error(`merge failed (${res.status})`);
+        okGroups.push(g);
+      } catch (e:any) {
+        setErrors(prev => ({ ...prev, [gid]: e?.message || 'Merge failed' }));
+      }
+    }
+    setSubmitting(false);
+    if (okGroups.length > 0) {
+      // notify parent to remove merged groups from list
+      onApprove(okGroups);
+      // keep dialog open with remaining (non-merged) groups
+      setPendingGroups(prev => prev.filter(pg => !okGroups.includes(pg)));
+    }
+    // if none left pending, close
+    const stillPending = pendingGroups.filter(pg => !okGroups.includes(pg));
+    if (stillPending.length === 0) onCancel();
+  };
+
+  const readyToMergeCount = pendingGroups.filter(pg => {
+    const gid = String((pg.mainProfile as any).recordId ?? (pg.mainProfile as any).id);
+    const ai = suggestions[gid];
+    return !!ai && ai.human_review_required === false && !loading[gid] && !errors[gid];
+  }).length;
 
   return (
     <Dialog open={open} onClose={onCancel} fullWidth maxWidth="md">
@@ -81,15 +190,33 @@ export default function ConfirmMergeDialog({ open, groups, onApprove, onCancel }
         </Typography>
 
         {pendingGroups.map((group, index) => {
-          const { mergedProfile, reasoning } = simulateLlmMerge(group);
+          const gid = String((group.mainProfile as any).recordId ?? (group.mainProfile as any).id ?? index);
+          const ai = suggestions[gid] || null;
+          const mergedProfile = ai?.suggested_golden_record ? goldenToUi(ai.suggested_golden_record) : ({} as Partial<Profile>);
+          // map snake_case field_name -> camelCase
+          const snakeToCamel = (s: string) => s.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+          const resByField: Record<string, { chosen_value:any; justification?:string }> = {};
+          (ai?.conflicts_resolved || []).forEach(c => {
+            const camel = snakeToCamel(c.field_name);
+            resByField[camel] = { chosen_value: c.chosen_value, justification: c.justification };
+          });
+          // helper: identical chip if all values same across sources
+          const uniqueValuesFor = (camelKey: string) => {
+            const vals: any[] = [];
+            const push = (v:any) => { if (v !== undefined && v !== null && !vals.includes(v)) vals.push(v); };
+            push((group.mainProfile as any)[camelKey]);
+            (group.duplicates || []).forEach((d:any)=> push(d[camelKey] ?? d?.other_patient?.[camelKey]));
+            return vals;
+          };
           return (
-            <Accordion key={group.mainProfile.id} defaultExpanded={index === 0}>
+            <Accordion key={gid} defaultExpanded={index === 0}>
               <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                {/* --- THIS IS THE NEW REJECT BUTTON --- */}
+                {/* --- Reject button (rendered as div to avoid nested button) --- */}
                 <Tooltip title="Reject this Merge Suggestion">
                   <IconButton
+                    component="div"
                     size="small"
-                    onClick={(event) => handleRejectGroup(event, group.mainProfile.id)}
+                    onClick={(event) => handleRejectGroup(event, (group.mainProfile as any).recordId ?? (group.mainProfile as any).id)}
                     sx={{ mr: 1 }}
                   >
                     <CloseIcon />
@@ -97,26 +224,17 @@ export default function ConfirmMergeDialog({ open, groups, onApprove, onCancel }
                 </Tooltip>
                 <Typography fontWeight="bold">Merge for: {group.mainProfile.firstName} {group.mainProfile.lastName}</Typography>
               </AccordionSummary>
-        {/*
-        {groups.map((group, index) => {
-          const { mergedProfile, reasoning } = simulateLlmMerge(group);
-          return (
-            <Accordion key={group.mainProfile.id} defaultExpanded={index === 0}>
-              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                <Typography fontWeight="bold">Merge for: {group.mainProfile.firstName} {group.mainProfile.lastName}</Typography>
-              </AccordionSummary>
-              */}
               <AccordionDetails>
                 <Grid container spacing={3}>
                   {/* Left Column: Source Profiles */}
                   <Grid item xs={12} md={5}>
                     <Typography variant="subtitle2" gutterBottom>Source Profiles</Typography>
                     <Stack spacing={1}>
-                      {[group.mainProfile, ...group.duplicates].map(p => (
-                        <Paper key={p.id} variant="outlined" sx={{ p: 1 }}>
-                          <Typography variant="body2" fontWeight="bold">{p.firstName} {p.lastName} (#{p.id})</Typography>
-                          <Typography variant="caption" color="text.secondary" component="div">Email: {p.email}</Typography>
-                          <Typography variant="caption" color="text.secondary" component="div">Phone: {p.phone}</Typography>
+                      {[group.mainProfile, ...group.duplicates].map((p, idx) => (
+                        <Paper key={(p as any).recordId ?? (p as any).id ?? idx} variant="outlined" sx={{ p: 1 }}>
+                          <Typography variant="body2" fontWeight="bold">{(p as any).firstName} {(p as any).lastName} (# {(p as any).recordId ?? (p as any).id})</Typography>
+                          <Typography variant="caption" color="text.secondary" component="div">Email: {(p as any).email}</Typography>
+                          <Typography variant="caption" color="text.secondary" component="div">Phone: {(p as any).phoneNumber ?? (p as any).phone}</Typography>
                         </Paper>
                       ))}
                     </Stack>
@@ -125,22 +243,59 @@ export default function ConfirmMergeDialog({ open, groups, onApprove, onCancel }
                   {/* Right Column: Suggested Merged Profile */}
                   <Grid item xs={12} md={7}>
                      <Typography variant="subtitle2" gutterBottom>AI Suggested Merged Profile</Typography>
-                     <Stack spacing={1.5}>
-                        {Object.entries(mergedProfile).map(([key, value]) => (
-                            <Box key={key} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                <Typography variant="body2" sx={{ minWidth: 100, fontWeight: 500, textTransform: 'capitalize' }}>
-                                    {key.replace(/([A-Z])/g, ' $1')}:
-                                </Typography>
-                                <Typography variant="body2" sx={{ flexGrow: 1 }}>{value}</Typography>
-                                <Chip label={reasoning[key]} size="small" variant="outlined" />
-                            </Box>
-                        ))}
-                     </Stack>
-                     <Divider sx={{ my: 2 }} />
-                     <Typography variant="subtitle2" gutterBottom>Reasoning Summary</Typography>
-                     <Typography variant="body2" fontStyle="italic" color="text.secondary">
-                        Kept the most complete name from the main profile. For contact and address details, preferred values from the most recently updated record (simulated as duplicate #{group.duplicates[group.duplicates.length - 1]?.id ?? group.mainProfile.id}).
-                     </Typography>
+                     {loading[gid] && (
+                       <Typography variant="body2" color="text.secondary">Loading AI suggestion…</Typography>
+                     )}
+                     {errors[gid] && (
+                       <Typography variant="body2" color="error">{errors[gid]}</Typography>
+                     )}
+                     {!loading[gid] && !errors[gid] && ai && (
+                       <>
+                         <Stack spacing={1.5}>
+                           {Object.entries(mergedProfile).map(([key, value]) => {
+                             const res = resByField[key];
+                             const uniq = uniqueValuesFor(key);
+                             return (
+                               <Box key={String(key)} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                 <Typography variant="body2" sx={{ minWidth: 120, fontWeight: 500, textTransform: 'capitalize' }}>
+                                   {key.replace(/([A-Z])/g, ' $1')}:
+                                 </Typography>
+                                 <Typography variant="body2" sx={{ flexGrow: 1 }}>{String(value ?? '')}</Typography>
+                                 {res ? (
+                                   res.chosen_value === 'NEEDS_HUMAN_REVIEW' ? (
+                                     <Tooltip title={res.justification || 'Needs human review'}>
+                                       <Chip label="Review" size="small" color="warning" variant="outlined" />
+                                     </Tooltip>
+                                   ) : (
+                                     <Tooltip title={`AI: ${res.justification || 'Resolved'}`}>
+                                       <Chip label="AI" size="small" color="info" variant="outlined" />
+                                     </Tooltip>
+                                   )
+                                 ) : (
+                                   uniq.length <= 1 ? (
+                                     <Tooltip title="Identical across sources">
+                                       <Chip label="Same" size="small" variant="outlined" />
+                                     </Tooltip>
+                                   ) : null
+                                 )}
+                               </Box>
+                             );
+                           })}
+                         </Stack>
+                         <Divider sx={{ my: 2 }} />
+                         <Typography variant="subtitle2" gutterBottom>AI Notes</Typography>
+                         <Stack spacing={0.5}>
+                           {(ai.processing_log || []).slice(0, 6).map((line, i) => (
+                             <Typography key={i} variant="caption" color="text.secondary">{line}</Typography>
+                           ))}
+                         </Stack>
+                         {ai.human_review_required && (
+                           <Typography variant="body2" color="warning.main" sx={{ mt: 1 }}>
+                             Some fields require human review.
+                           </Typography>
+                         )}
+                       </>
+                     )}
                   </Grid>
                 </Grid>
               </AccordionDetails>
@@ -150,13 +305,13 @@ export default function ConfirmMergeDialog({ open, groups, onApprove, onCancel }
       </DialogContent>
       <DialogActions>
         <Button onClick={onCancel}>Cancel</Button>
-<Button
-          onClick={() => onApprove(pendingGroups)} // Pass the final pending list back
+        <Button
+          onClick={handleApprove}
           variant="contained"
           color="success"
-          disabled={pendingGroups.length === 0} // Disable if no groups are left
+          disabled={submitting || readyToMergeCount === 0}
         >
-          Approve {pendingGroups.length} Merge{pendingGroups.length !== 1 ? 's' : ''}
+          {submitting ? 'Applying…' : `Approve ${readyToMergeCount} Merge${readyToMergeCount !== 1 ? 's' : ''}`}
         </Button>
       </DialogActions>
     </Dialog>

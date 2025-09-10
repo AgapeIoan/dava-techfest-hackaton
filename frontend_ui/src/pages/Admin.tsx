@@ -253,7 +253,7 @@ export default function AdminPage() {
 //   const [allGroups, setAllGroups] = useState<DuplicateGroupData[]>([]);
   const [filteredGroups, setFilteredGroups] = useState<DuplicateGroupData[]>([]);
   const [selectedGroups, setSelectedGroups] = useState<Set<number>>(new Set());
-//   const [isLoading, setIsLoading] = useState(false);
+  // use isLoading from admin store; no local loading state
   const [searchInitiated, setSearchInitiated] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState('');
@@ -424,11 +424,11 @@ export default function AdminPage() {
   ), [filteredGroups, currentPage]);
 
   const handleFindDuplicates = () => {
-    setIsLoading(true);
+    // optional: local loading not needed; dialog handles submitting state
     setTimeout(() => {
       setAllGroups(MOCK_DUPLICATE_DATA);
       setSearchInitiated(true);
-      setIsLoading(false);
+      // no local loading state
     }, 1500);
   };
 
@@ -464,7 +464,7 @@ export default function AdminPage() {
       return;
     }
     const approvedIds = new Set(approvedGroups.map(g => g.mainProfile.recordId || g.mainProfile.id));
-    setIsLoading(true);
+    // no local loading state here; dialog shows submitting state
     // Update the store's duplicateGroups instead of local state
     useAdminStore.setState(state => ({
       duplicateGroups: state.duplicateGroups.filter(group => !approvedIds.has(group.mainProfile.recordId || group.mainProfile.id))
@@ -475,7 +475,7 @@ export default function AdminPage() {
       approvedIds.forEach(id => newSelection.delete(id));
       return newSelection;
     });
-    setIsLoading(false);
+    // done
     setIsConfirmModalOpen(false);
   };
 
@@ -657,9 +657,9 @@ export default function AdminPage() {
   return (
     <Box>
       {/* DEBUG: Show modal state visually */}
-      <Typography variant="caption" color="error" sx={{ position: 'fixed', top: 0, right: 0, zIndex: 9999 }}>
+      {/* <Typography variant="caption" color="error" sx={{ position: 'fixed', top: 0, right: 0, zIndex: 9999 }}>
         Modal open: {String(isConfirmModalOpen)} | Groups: {groupsToConfirm.length}
-      </Typography>
+      </Typography> */}
 
       <Typography variant="h4" gutterBottom>
         Find & Merge Duplicates

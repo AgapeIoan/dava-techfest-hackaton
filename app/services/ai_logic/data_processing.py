@@ -31,7 +31,14 @@ def prepare_data_for_llm(rec_a, rec_b):
     conflicting_fields = {}
     all_keys = set(rec_a.keys()) | set(rec_b.keys())
 
+    # Fields to ignore for conflict prompting (identifiers)
+    ignore_keys = {"record_id", "original_record_id", "cluster_id", "merged_into"}
+
     for key in all_keys:
+        if key in ignore_keys:
+            # Keep anchor (A) for identifiers; do not ask LLM about them
+            identical_fields[key] = rec_a.get(key)
+            continue
         val_a = rec_a.get(key)
         val_b = rec_b.get(key)
         if val_a == val_b:
