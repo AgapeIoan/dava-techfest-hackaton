@@ -279,7 +279,8 @@ export default function AdminPage() {
       startDetectionJob,
       duplicateGroups,
       isLoading,
-      fetchDuplicateGroups
+      fetchDuplicateGroups,
+      resetRunHistory
   } = useAdminStore();
   const latestRun = runHistory.find(r => r.status !== 'idle'); // Find the most recent run
   const isJobRunning = runHistory.some(run => run.status === 'running');
@@ -532,7 +533,7 @@ export default function AdminPage() {
   const handleOpenManualMerge = (group: DuplicateGroupData) => {
     // Collect all fields and set default selections to mainProfile values
     const allFields = [
-      'firstName', 'lastName', 'dateOfBirth', 'phone', 'gender', 'email', 'ssn', 'address', 'city', 'county',
+      'firstName', 'lastName', 'dateOfBirth', 'phoneNumber', 'gender', 'email', 'ssn', 'address', 'city', 'county',
     ];
     const selections: Record<string, string> = {};
     allFields.forEach(field => {
@@ -550,12 +551,81 @@ export default function AdminPage() {
     setMergeSelections(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleApproveManualMerge = () => {
-    // Here you would send mergeSelections to backend or update state
-    // For demo, just close modal and remove group from list
-    if (manualMergeGroup) {
-      setAllGroups(prev => prev.filter(g => g.mainProfile.id !== manualMergeGroup.mainProfile.id));
+  const handleApproveManualMerge = async () => {
+    if (!manualMergeGroup) return;
+    const token = getAuthToken();
+    if (!token) {
+      setToast('Authentication error. Please log in again.');
+      setToastSeverity('error');
+      return;
+    }
+
+    try {
+      const masterId = manualMergeGroup.mainProfile.recordId || manualMergeGroup.mainProfile.id;
+      // Defensive: filter out masterId from duplicates
+      const duplicateIds = manualMergeGroup.duplicates
+        .map(dup => dup.recordId || dup.id)
+        .filter(id => id !== masterId);
+      // Convert camelCase keys to snake_case for backend
+      const toSnake = (obj: Record<string, any>) => {
+        const out: Record<string, any> = {};
+        for (const k in obj) {
+          out[k.replace(/([A-Z])/g, '_$1').toLowerCase()] = obj[k];
+        }
+        return out;
+      };
+      const payload = {
+        master_record_id: masterId,
+        duplicate_record_ids: duplicateIds,
+        reason: 'manual merge',
+        updates: toSnake(mergeSelections)
+      };
+      console.log(payload)
+      const response = await fetch(`${API_BASE}/patients/merge`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+      console.log(response.status)
+//       let responseData;
+//       try {
+//         responseData = await response.json();
+//       } catch {
+//         responseData = null;
+//       }
+//       if (response.status !== 200 || (responseData && (responseData.detail || responseData.error))) {
+//         let errorMsg = 'Merge failed.';
+//         if (responseData && (responseData.detail || responseData.error)) {
+//           errorMsg = responseData.detail || responseData.error || errorMsg;
+//         }
+//         setToast(errorMsg);
+//         setToastSeverity('error');
+//         return;
+//       }
+      setToast('Profiles merged successfully!');
+      setToastSeverity('success');
+      // Defensive: check id field and log for debugging
+      const mergedId = manualMergeGroup?.mainProfile?.recordId || manualMergeGroup?.mainProfile?.id;
+      if (!mergedId) {
+        console.warn('Manual merge group id is missing:', manualMergeGroup);
+      }
+      // Log ids before filtering
+      const beforeIds = useAdminStore.getState().duplicateGroups.map(g => g.mainProfile.recordId || g.mainProfile.id);
+      console.log('Before merge, group ids:', beforeIds);
+      useAdminStore.setState(state => ({
+        duplicateGroups: state.duplicateGroups.filter(g => (g.mainProfile.recordId || g.mainProfile.id) !== mergedId)
+      }));
+      // Log ids after filtering
+      const afterIds = useAdminStore.getState().duplicateGroups.map(g => g.mainProfile.recordId || g.mainProfile.id);
+      console.log('After merge, group ids:', afterIds);
       setManualMergeGroup(null);
+    } catch (error) {
+        console.log(error)
+      setToast('Merge failed.');
+      setToastSeverity('error');
     }
   };
 
@@ -638,6 +708,18 @@ export default function AdminPage() {
               Reset Stuck Job
             </Button>
           )}
+          <Button
+            variant="outlined"
+            color="primary"
+            onClick={() => {
+              resetRunHistory();
+              setToast('Demo reset: all previous runs cleared.');
+              setToastSeverity('success');
+              setSelectedRunId('');
+            }}
+          >
+            Reset Demo
+          </Button>
         </Stack>
       </Paper>
 

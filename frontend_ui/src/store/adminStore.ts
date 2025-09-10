@@ -33,35 +33,38 @@ function loadRunHistory(): DetectionRun[] {
     const stored = localStorage.getItem(RUN_HISTORY_STORAGE_KEY);
     if (stored) return JSON.parse(stored) as DetectionRun[];
   } catch (e) { console.error("Failed to load run history", e); }
-  // Pre-populate with fake historical data for a good demo!
-  return [
-    { id: 1, status: 'completed', progress: 100, startedAt: new Date(Date.now() - 86400000).toISOString(), completedAt: new Date(Date.now() - 86000000).toISOString(), resultCount: 487 },
-    { id: 2, status: 'completed', progress: 100, startedAt: new Date(Date.now() - 172800000).toISOString(), completedAt: new Date(Date.now() - 172400000).toISOString(), resultCount: 512 },
-  ];
+  // Start with an empty history for a clean demo
+  return [];
 }
 
 // --- STORE DEFINITION ---
 type AdminState = {
   runHistory: DetectionRun[];
+  runCounter: number;
   duplicateGroups: DuplicateGroupData[];  // state to hold fetched duplicate groups
   isLoading: boolean;   // state for loading indicator
   startDetectionJob: () => Promise<void>;
   startDetectionJobApi: () => Promise<void>; // new action for real API call
   fetchDuplicateGroups: (runId: number) => Promise<void>;  // action to fetch results
+  resetRunHistory: () => void; // action to reset run history
 };
 
 const useAdminStore = create<AdminState>((set, get) => ({
   runHistory: loadRunHistory(),
+  runCounter: 0,
   duplicateGroups: [],  // initial state
   isLoading: false,     // initial state
   startDetectionJob: async () => {
     const history = get().runHistory;
+    const runCounter = get().runCounter;
     if (history.some(run => run.status === 'running')) {
       return; // A job is already running, do nothing.
     }
 
+    const newRunId = runCounter + 1;
+    set({ runCounter: newRunId });
     const newRun: DetectionRun = {
-      id: (history[0]?.id || 0) + 1,
+      id: newRunId,
       status: 'running',
       progress: 0,
       startedAt: new Date().toISOString(),
@@ -127,8 +130,11 @@ const useAdminStore = create<AdminState>((set, get) => ({
       }
       const data = await response.json();
       // Add new run to history
+      const runCounter = get().runCounter;
+      const newRunId = runCounter + 1;
+      set({ runCounter: newRunId });
       const newRun: DetectionRun = {
-        id: data.run_id,
+        id: newRunId,
         status: 'running',
         progress: 0,
         startedAt: new Date().toISOString(),
@@ -222,10 +228,13 @@ const useAdminStore = create<AdminState>((set, get) => ({
         return 'low';
       }
       const mappedResults = results.map((group: any) => {
-        const duplicates = Array.isArray(group.duplicates) ? group.duplicates.map(d => ({
-          ...d,
-          otherPatient: toCamel(d.other_patient)
-        })) : [];
+        const duplicates = Array.isArray(group.duplicates)
+          ? group.duplicates.map(d => ({
+              ...d,
+              ...toCamel(d.other_patient), // flatten otherPatient fields into duplicate
+              otherPatient: toCamel(d.other_patient)
+            }))
+          : [];
         // Find highest score among duplicates
         const maxScore = duplicates.length > 0 ? Math.max(...duplicates.map(d => d.score || 0)) : 0;
         return {
@@ -276,6 +285,11 @@ const useAdminStore = create<AdminState>((set, get) => ({
       saveRunHistory(history);
     }
     return reset;
+  },
+
+  resetRunHistory: () => {
+    localStorage.removeItem(RUN_HISTORY_STORAGE_KEY);
+    set({ runHistory: [], runCounter: 0 });
   },
 }));
 
