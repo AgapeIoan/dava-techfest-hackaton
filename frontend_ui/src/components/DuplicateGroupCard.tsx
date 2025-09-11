@@ -141,13 +141,13 @@ export default function DuplicateGroupCard({
               const other = duplicate.other_patient || {};
               // Collect match details with high similarity
               const matchDetails: { label: string; value: number }[] = [];
-              if ((duplicate.s_name ?? 0) >= 0.8) matchDetails.push({ label: 'name', value: duplicate.s_name });
-              if ((duplicate.s_dob ?? 0) >= 0.8) matchDetails.push({ label: 'dob', value: duplicate.s_dob });
-              if ((duplicate.s_email ?? 0) >= 0.8) matchDetails.push({ label: 'email', value: duplicate.s_email });
-              if ((duplicate.s_phone ?? 0) >= 0.8) matchDetails.push({ label: 'phone', value: duplicate.s_phone });
-              if ((duplicate.s_address ?? 0) >= 0.8) matchDetails.push({ label: 'address', value: duplicate.s_address });
-              if ((duplicate.s_gender ?? 0) >= 0.8) matchDetails.push({ label: 'gender', value: duplicate.s_gender });
-              if ((duplicate.s_ssn_hard_match ?? 0) >= 0.8) matchDetails.push({ label: 'SSN', value: duplicate.s_ssn_hard_match });
+              if ((duplicate.s_name ?? 0) >= 0.95) matchDetails.push({ label: 'name', value: duplicate.s_name });
+              if ((duplicate.s_dob ?? 0) >= 0.95) matchDetails.push({ label: 'dob', value: duplicate.s_dob });
+              if ((duplicate.s_email ?? 0) >= 0.95) matchDetails.push({ label: 'email', value: duplicate.s_email });
+              if ((duplicate.s_phone ?? 0) >= 0.95) matchDetails.push({ label: 'phone', value: duplicate.s_phone });
+              if ((duplicate.s_address ?? 0) >= 0.95) matchDetails.push({ label: 'address', value: duplicate.s_address });
+              if ((duplicate.s_gender ?? 0) >= 0.95) matchDetails.push({ label: 'gender', value: duplicate.s_gender });
+              if ((duplicate.s_ssn_hard_match ?? 0) >= 0.95) matchDetails.push({ label: 'SSN', value: duplicate.s_ssn_hard_match });
               return (
                 <ListItem key={other.record_id || idx} divider>
                   <ListItemText
