@@ -61,8 +61,6 @@ export default function MergePage() {
   }
 
   async function onApprove() {
-    // MOCK MODE: aplică merge în memorie (store.applyMerge)
-    // API MODE: store.applyMerge va POST-a către /api/merge/approve (vezi store/dupeStore.ts comentarii)
     const res = await applyMerge(draft)
     if (res.ok) navigate('/duplicates')
   }

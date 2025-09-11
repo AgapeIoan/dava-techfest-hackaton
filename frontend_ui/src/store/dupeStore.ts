@@ -1,7 +1,7 @@
 import { is } from 'date-fns/locale';
 import { create } from 'zustand'
 
-// ---------- Tipuri ----------
+// ---------- Types ----------
 export type Address = { street: string; number: string; city: string; county: string }
 export type Patient = {
   id: string; firstName: string; lastName: string; ssn?: string; dob?: string;
@@ -14,7 +14,7 @@ export type ActivityEvent = {
   changes: { path: string; from: string; to: string }[];
 }
 
-// ---------- Config API ----------
+// ----------  API Config ----------
 export const USE_API = true
 export const API_BASE = "http://127.0.0.1:8000"
 
@@ -193,9 +193,9 @@ async function apiApproveMerge(payload: ApiApproveReq): Promise<ApiApproveResp> 
   return res.json()
 }
 
-// La refresh, șterge autentificarea
+// On page refresh, clear session and load auth from localStorage
 clearAuth();
-const initialAuth = loadAuth() // ⬅️ NEW
+const initialAuth = loadAuth()
 
 const useDupeStore = create<State>()((set, get) => ({
   db: JSON.parse(JSON.stringify(INITIAL)),
@@ -232,7 +232,6 @@ const useDupeStore = create<State>()((set, get) => ({
   },
 
   loginWithBackend: async (email: string, password: string) => {
-    // Login real cu backend (Bearer token)
     set({ loading: true });
     try {
       // Call backend directly; CORS is configured to allow it
@@ -242,7 +241,7 @@ const useDupeStore = create<State>()((set, get) => ({
         body: JSON.stringify({ username: email, password }),
       });
       if (!res.ok) {
-        set({ toast: res.status === 401 ? 'Email sau parolă incorectă!' : `Login failed (${res.status})`, loading: false });
+        set({ toast: res.status === 401 ? 'Incorrect login credentials!' : `Login failed (${res.status})`, loading: false });
         return;
       }
       const data = await res.json();
@@ -315,7 +314,7 @@ const useDupeStore = create<State>()((set, get) => ({
       });
       return;
     }
-    set({ toast: 'Email sau parolă incorectă!' });
+    set({ toast: 'Incorrect login credentials!' });
   },
 
   logout: () => {
@@ -330,16 +329,16 @@ const useDupeStore = create<State>()((set, get) => ({
     });
   },
 
-  //Search patients and duplicates from backend in /duplicates
+  // Search patients and duplicates from backend in /duplicates
   async search() {
     const { role, first, last } = get();
-    console.log('search() - valori inițiale:', { role, first, last });
+    console.log('search() - initial values:', { role, first, last });
       if (role !== 'admin' && role !== 'receptionist') {
-        set({ toast: 'Doar admin sau receptionist poate folosi search.' });
+        set({ toast: 'Unauthorized' });
         return;
       }
       if (!first) {
-        set({ toast: 'Completează prenumele!' });
+        set({ toast: 'First name missing!' });
         return;
       }
       set({ loading: true, patient: null, dupes: [], selected: {} });
@@ -353,7 +352,7 @@ const useDupeStore = create<State>()((set, get) => ({
         const res = await fetch(`http://127.0.0.1:8000/patients/search?name=${query}`,
           token ? { headers: { Authorization: `Bearer ${token}` } } : undefined
         );
-        if (!res.ok) throw new Error('Eroare la căutare!');
+        if (!res.ok) throw new Error('Search error!');
         const data = await res.json();
         if (!data || !data.length) {
           set({ loading: false, toast: 'Patient not found.' });
@@ -399,7 +398,7 @@ const useDupeStore = create<State>()((set, get) => ({
       }));
         set({ patient, dupes, loading: false, toast: null });
       } catch (e) {
-        set({ loading: false, toast: 'Eroare la căutare!' });
+        set({ loading: false, toast: 'Search error!' });
       }
   },
 
@@ -553,7 +552,6 @@ const useDupeStore = create<State>()((set, get) => ({
         }
       });
       if (!res.ok) throw new Error('Delete failed');
-      // Actualizează store-ul local
       set(s => ({
         db: s.db.filter(p => p.id !== id),
         dupes: s.dupes.filter(p => p.id !== id),

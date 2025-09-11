@@ -18,7 +18,6 @@ import {
 import { ExpandMore as ExpandMoreIcon } from '@mui/icons-material';
 import type { DuplicateGroupData } from '../pages/Admin';
 
-// Renamed props for clarity
 interface DuplicateGroupCardProps {
   groupData: DuplicateGroupData;
   isSelected: boolean;
@@ -38,7 +37,6 @@ const getConfidenceChipColor = (confidence: 'high' | 'medium' | 'low') => {
   }
 };
 
-// Renamed the component function to match the new file name
 export default function DuplicateGroupCard({
   groupData,
   isSelected,

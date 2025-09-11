@@ -5,8 +5,8 @@ import { API_BASE, getAuthToken } from './dupeStore';
 // --- TYPE DEFINITIONS ---
 // This should match the DuplicateGroupData from Admin.tsx
 export interface DuplicateGroupData {
-  mainProfile: any; // Replace with your actual Profile type
-  duplicates: any[]; // Replace with your actual DuplicateProfile type
+  mainProfile: any; // Replace with the actual Profile type
+  duplicates: any[]; // Replace with the actual DuplicateProfile type
   confidence: 'high' | 'medium' | 'low';
 }
 
@@ -95,7 +95,6 @@ const useAdminStore = create<AdminState>((set, get) => ({
       if (runningJob) {
         runningJob.status = 'completed';
         runningJob.progress = 100;
-        // THIS IS THE FIX: Capture the current time when the job is marked as complete.
         runningJob.completedAt = new Date().toISOString();
         runningJob.resultCount = Math.floor(450 + Math.random() * 100);
         set({ runHistory: [...finalHistory] });
@@ -154,7 +153,7 @@ const useAdminStore = create<AdminState>((set, get) => ({
         runningJob.progress = Math.min(runningJob.progress + 10, 100);
         set({ runHistory: [...currentHistory] });
         saveRunHistory(currentHistory);
-        // Log status update to console
+        // DEBUG: Log status update to console
         console.log(`Deduplication run ${newRun.id} status: running, progress: ${runningJob.progress}%`);
       }, 1500);
 
@@ -170,7 +169,7 @@ const useAdminStore = create<AdminState>((set, get) => ({
           runningJob.resultCount = data.links_inserted || 0;
           set({ runHistory: [...finalHistory] });
           saveRunHistory(finalHistory);
-          // Log completion to console
+          // DEBUG: Log completion to console
           console.log(`Deduplication run ${newRun.id} status: completed, progress: 100%`);
         }
       }, 15 * 1000);
@@ -197,7 +196,6 @@ const useAdminStore = create<AdminState>((set, get) => ({
     set({ isLoading: true, duplicateGroups: [] }); // Set loading and clear old results
 
     try {
-//       const response = await fetch(`${API_BASE}/patients/matches?run_id=${runId}`, {
     const response = await fetch(`${API_BASE}/patients/matches`, {
         method: 'GET',
         headers: {
@@ -250,7 +248,6 @@ const useAdminStore = create<AdminState>((set, get) => ({
 
     } catch (error) {
       console.error("Error fetching duplicate groups:", error);
-      // You could set an error state here to show in the UI
     } finally {
       set({ isLoading: false }); // Always turn off loading indicator
     }
@@ -295,7 +292,5 @@ const useAdminStore = create<AdminState>((set, get) => ({
     set({ runHistory: [], runCounter: 0 });
   },
 }));
-
-
 
 export default useAdminStore;

@@ -19,7 +19,6 @@ import DialogActions from '@mui/material/DialogActions';
 import IconButton from '@mui/material/IconButton';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
-// elimin importul direct pentru deletePatient
 
 
 function maskSSN(ssn?: string) {
@@ -28,7 +27,6 @@ function maskSSN(ssn?: string) {
   if (digits.length <= 4) return `****${digits}`
   return `****${digits.slice(-4)}`
 }
-
 
 function MatchBar({ value }: { value: number }) {
   const color = value >= 85 ? 'success.main' : value >= 60 ? 'warning.main' : 'info.main'
@@ -41,8 +39,6 @@ function MatchBar({ value }: { value: number }) {
     </Box>
   )
 }
-
-
 
 export default function DuplicatesPage() {
   const [addOpen, setAddOpen] = useState(false);
@@ -128,7 +124,6 @@ export default function DuplicatesPage() {
         setAddOpen(false);
       } catch (error) {
         console.error('Error adding patient:', error);
-        // Optionally show error to user
         setAddOpen(false);
       }
   };
@@ -185,7 +180,6 @@ export default function DuplicatesPage() {
         city: editPatient.address?.city ?? '',
         county: editPatient.address?.county ?? '',
         number: editPatient.address?.number ?? '',
-        // Add other fields as needed, e.g. gender, cluster_id, etc.
       };
       console.log('PATCH /patients/' + editPatient.id + ' with fields:');
       Object.entries(flatPatient).forEach(([key, value]) => {
@@ -212,7 +206,6 @@ export default function DuplicatesPage() {
       }));
     } catch (error) {
       console.error('Error updating patient:', error);
-      // Optionally show error to user
     }
     setEditOpen(false);
   };
@@ -251,7 +244,6 @@ export default function DuplicatesPage() {
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems="center">
                 <TextField label="First Name" value={first} onChange={e => handleFieldChange(setFirst, e.target.value)} fullWidth required />
                 <TextField label="Last Name" value={last} onChange={e => handleFieldChange(setLast, e.target.value)} fullWidth required />
-              {/* Eliminat câmpul Date of Birth din formularul de căutare */}
               <Button
                 onClick={() => {
                   // @ts-ignore
@@ -282,7 +274,6 @@ export default function DuplicatesPage() {
         </Paper>
       )}
 
-      {/* Skeleton pentru card */}
       {loading && !patient && (
         <Card sx={{ mb: 2 }}>
           <CardContent>
@@ -298,7 +289,6 @@ export default function DuplicatesPage() {
         </Card>
       )}
 
-      {/* Skeleton pentru tabel */}
       {loading && patient && sorted.length === 0 && (
         <Paper sx={{ p: 2 }}>
           {Array.from({length:4}).map((_,i)=>(
@@ -321,7 +311,6 @@ export default function DuplicatesPage() {
             }}
             elevation={3}
           >
-        {/* Eliminat titlul deasupra tabelului */}
             {role === 'admin' && (
               <Stack direction="row" spacing={1} sx={{ mb: 1 }}>
                 <Button variant="contained" color="secondary" disabled={!Object.values(selected||{}).some(Boolean) || loading}
@@ -434,7 +423,7 @@ export default function DuplicatesPage() {
         </Alert>
       </Snackbar>
 
-      {/* Dialog pentru editare pacient */}
+      {/* Pacient edit */}
       <Dialog open={editOpen} onClose={handleEditClose} maxWidth="sm" fullWidth>
         <DialogTitle>Edit Patient</DialogTitle>
         <DialogContent>
@@ -630,17 +619,3 @@ export default function DuplicatesPage() {
     </>
   )
 }
-
-// Exemplu pentru array-ul de coloane într-un DataGrid/Table
-const columns = [
-  // ...alte coloane...
-  {
-    field: 'address',
-    headerName: 'Address',
-    width: 200,
-    valueGetter: (params) =>
-      (params.row.address?.street ?? '') +
-      (params.row.address?.number ? ' ' + params.row.address.number : ''),
-  },
-  // ...alte coloane...
-]

@@ -1,5 +1,3 @@
-// --- START OF FILE src/components/ConfirmMergeDialog.tsx ---
-
 import React, { useState, useEffect } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions, Button, Accordion, AccordionSummary,
@@ -11,7 +9,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import { DuplicateGroupData, Profile } from '../pages/Admin';
 import { API_BASE, getAuthToken } from '../store/dupeStore';
 
-// --- Helpers to call real LLM backend ---
+// --- Helpers to call LLM backend ---
 type AiResolution = { field_name: string; value_A: any; value_B: any; chosen_value: any; justification?: string };
 type AiSuggestion = {
   suggested_golden_record: any;
@@ -106,7 +104,7 @@ export default function ConfirmMergeDialog({ open, groups, onApprove, onCancel }
     })();
   }, [groups, open]);
 
-  // --- NEW: Handler to reject/remove a single group ---
+  // --- Handler to reject/remove a single group ---
   const handleRejectGroup = (event: React.MouseEvent, groupIdToReject: number | string) => {
     event.stopPropagation(); // Prevents the accordion from toggling
     setPendingGroups(prev => prev.filter(g => ((g.mainProfile as any).recordId ?? (g.mainProfile as any).id) !== groupIdToReject));
@@ -241,7 +239,7 @@ export default function ConfirmMergeDialog({ open, groups, onApprove, onCancel }
           return (
             <Accordion key={gid} defaultExpanded={index === 0}>
               <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                {/* --- Reject button (rendered as div to avoid nested button) --- */}
+                {/* --- Reject button --- */}
                 <Tooltip title="Reject this Merge Suggestion">
                   <IconButton
                     component="div"
