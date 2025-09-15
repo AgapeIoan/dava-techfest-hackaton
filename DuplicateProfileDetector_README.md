@@ -68,5 +68,5 @@ The Duplicate Profile Detector is a healthcare data management solution designed
 
 ### Accessing the Application
 - Open your browser and navigate to the frontend URL (usually http://localhost:5173).
-- Log in as either Receptionist or Admin to access role-specific features.
+- Log in as either Receptionist (username: reception@demo.local, password: receptionpass) or Admin (username: admin@demo.local, password: adminpass) to access role-specific features.
 
