@@ -1,30 +1,41 @@
 
 # Duplicate Profile Detector — Unified Documentation
 
-This project provides a complete solution for detecting and merging duplicate patient profiles, including synthetic data generation, a FastAPI backend for deduplication, and a modern React + MUI + Zustand UI.
+This project provides a complete solution for detecting and merging duplicate patient profiles, including:
+- Synthetic data generation
+- FastAPI backend for deduplication
+- Modern React + MUI + Zustand UI
 
 ---
 
 ## Table of Contents
 - [Overview](#overview)
+- [Features](#features)
+- [User Roles](#user-roles)
 - [Synthetic Data Generator](#synthetic-data-generator)
 - [Frontend (React + MUI + Zustand)](#frontend-react--mui--zustand)
 - [Backend (FastAPI) — Quickstart & API Contract](#backend-fastapi--quickstart--api-contract)
 - [Patient Deduplication API Guide](#patient-deduplication-api-guide)
 - [Roadmap & Extensions](#roadmap--extensions)
+- [License & Contact](#license--contact)
 
 ---
 
+
 ## Overview
-- **Purpose:** Automated detection and merging of duplicate patient profiles using synthetic data, ML algorithms, and a modern UI.
-- **Stack:**
-  - Frontend: React, TypeScript, MUI, Zustand, Vite
-  - Backend: FastAPI, Pydantic, Uvicorn, Jellyfish
-  - Data: Python Generator (Faker)
+
+**Purpose:** Automated detection and merging of duplicate patient profiles using synthetic data, ML algorithms, and a modern UI.
+
+**Stack:**
+- **Frontend:** React, TypeScript, MUI, Zustand, Vite
+- **Backend:** FastAPI, Pydantic, Uvicorn, Jellyfish
+- **Data:** Python Generator (Faker)
+
 
 
 ## Features
-- **Automated Duplicate Detection:** Uses advanced algorithms to scan patient records and flag potential duplicates.
+
+- **Automated Duplicate Detection:** Advanced algorithms scan patient records and flag potential duplicates.
 - **Manual Review & Merge:** Intuitive UI for users to review and merge duplicate profiles.
 - **Reasoning & Audit Trail:** Shows reasoning for detected duplicates and logs merge actions for compliance.
 - **Data Export:** Export cleaned patient data for further analysis or integration.
@@ -32,17 +43,21 @@ This project provides a complete solution for detecting and merging duplicate pa
 
 ---
 
+
 ## User Roles
-- **Receptionist:**
-  - Add new patient profiles
-  - Edit existing profiles
-  - Search for duplicate patient profiles by first and last name
-- **Admin:**
-  - Import patient data from CSV files
-  - Run the duplicate detection algorithm
-  - View the list of detected duplicate profiles
-  - Manually merge duplicate profiles
-  - Auto-merge duplicates using AI (LLM provides similarity reasoning and highlights conflicts for human intervention)
+
+**Receptionist:**
+- Add new patient profiles
+- Edit existing profiles
+- Search for duplicate patient profiles by first and last name
+
+**Admin:**
+- Import patient data from CSV files
+- Run the duplicate detection algorithm
+- View the list of detected duplicate profiles
+- Manually merge duplicate profiles
+- Auto-merge duplicates using AI (LLM provides similarity reasoning and highlights conflicts for human intervention)
+
 
 
 ## Synthetic Data Generator
@@ -79,11 +94,13 @@ This project provides a complete solution for detecting and merging duplicate pa
 ---
 
 
+
 ## Frontend (React + MUI + Zustand)
 
 UI for detecting and merging duplicate profiles. Runs 100% in the browser (mock DB + scoring), but ready for FastAPI + ML backend.
 
 ### Project Structure
+
 - `src/`
   - `main.tsx` — mounts MUI theme + router
   - `App.tsx` — defines `/duplicates` and `/merge` routes
@@ -91,6 +108,7 @@ UI for detecting and merging duplicate profiles. Runs 100% in the browser (mock 
   - `layout/`, `pages/`, `store/` — components, pages, Zustand store
 
 ### UI Features
+
 - Search by First Name + Last Name
 - List of duplicates with scores and reasons
 - Export CSV, merge, undo, activity feed
@@ -98,17 +116,21 @@ UI for detecting and merging duplicate profiles. Runs 100% in the browser (mock 
 - Quick switch to real API (FastAPI)
 
 ### Quick Start
+
 ```bash
 cd frontend_ui
 npm install
 npm run dev
 ```
-### Accessing the Application
-- Open your browser and go to the frontend URL (usually http://localhost:5173).
-- Log in as Receptionist (username: reception@demo.local, password: receptionpass) or Admin (username: admin@demo.local, password: adminpass) for role-specific features.
 
-#### PowerShell Issues:
+### Accessing the Application
+
+- Open your browser and go to the frontend URL (usually http://localhost:5173).
+- Log in as Receptionist (`reception@demo.local` / `receptionpass`) or Admin (`admin@demo.local` / `adminpass`) for role-specific features.
+
+#### PowerShell Issues
 If npm.ps1 is blocked:
+
 ```powershell
 Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
 ```
@@ -116,9 +138,11 @@ Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
 ---
 
 
+
 ## Backend (FastAPI) — Quickstart & API Contract
 
 ### Quick Setup
+
 ```bash
 python -m venv .venv
 .venv\Scripts\activate
@@ -126,11 +150,13 @@ pip install fastapi uvicorn pydantic[dotenv] jellyfish
 ```
 
 ### Start
+
 ```bash
 uvicorn app.main:app --reload --port 8000
 ```
 
 ### API Contract (examples)
+
 - `POST /match/candidates` — find duplicates
 - `POST /merge/approve` — approve merge
 - `POST /ingest/patients-csv` — import patients from CSV
@@ -143,6 +169,7 @@ uvicorn app.main:app --reload --port 8000
 - `DELETE /patients/{record_id}` — soft delete patient
 
 #### Example request/response
+
 ```json
 {
   "record": {
@@ -160,9 +187,11 @@ uvicorn app.main:app --reload --port 8000
 ---
 
 
+
 ## Patient Deduplication API Guide
 
 ### Main Endpoints
+
 - `POST /ingest/patients-csv` — import patients from CSV
 - `POST /dedupe/run` — run deduplication
 - `GET /links/clusters` — list duplicate clusters
@@ -177,7 +206,9 @@ uvicorn app.main:app --reload --port 8000
 ---
 
 
+
 ## Roadmap & Extensions
+
 - International support (locales, SSN/phone rules)
 - Advanced ML integration for matching
 - Audit trail and rollback
@@ -185,13 +216,15 @@ uvicorn app.main:app --reload --port 8000
 
 ---
 
+## License & Contact
+
 **License:** MIT
 
-**Contact:** 
-Ioan Agape / https://github.com/AgapeIoan
-Irina Morosanu / https://github.com/chrnosnow
-Serafim Uliuliuc / https://github.com/Serafimuli
-Andrei Socoteala / https://github.com/Andreii1414
-Daniela Munteanu / https://github.com/DanaMt13
-Bogdan Moga / https://github.com/MogaB-x
-Alexandru Baba / https://github.com/Alex-Baba
+**Contact:**
+- Ioan Agape — [GitHub](https://github.com/AgapeIoan)
+- Irina Morosanu — [GitHub](https://github.com/chrnosnow)
+- Serafim Uliuliuc — [GitHub](https://github.com/Serafimuli)
+- Andrei Socoteala — [GitHub](https://github.com/Andreii1414)
+- Daniela Munteanu — [GitHub](https://github.com/DanaMt13)
+- Bogdan Moga — [GitHub](https://github.com/MogaB-x)
+- Alexandru Baba — [GitHub](https://github.com/Alex-Baba)
